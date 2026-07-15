@@ -2,7 +2,7 @@
 
 **配置 Github 仓库**
 
-1. Fork 或克隆仓库 [https://github.com/eoao/cloud-mail](https://github.com/eoao/cloud-mail)
+1. Fork 或克隆仓库 [https://github.com/k1lla995/cloud-mail](https://github.com/k1lla995/cloud-mail)
 2. 进入您的 GitHub 仓库设置
 3. 转到 Settings → Secrets and variables → Actions → New Repository secrets
 4. 添加以下 Secrets：
