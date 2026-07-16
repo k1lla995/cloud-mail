@@ -41,6 +41,7 @@ const dbInit = {
 		await this.v3_2DB(c);
 		await this.v3_3DB(c);
 		await this.v3_4DB(c);
+		await this.v3_5DB(c);
 		await settingService.refresh(c);
 	},
 
@@ -49,6 +50,21 @@ const dbInit = {
 			c.env.db.prepare(`UPDATE setting SET title = 'k1lla-mailplus' WHERE title = 'Cloud Mail'`),
 			c.env.db.prepare(`UPDATE setting SET notice_title = 'k1lla-mailplus' WHERE notice_title = 'Cloud Mail'`)
 		]);
+	},
+
+	async v3_5DB(c) {
+		const statements = [
+			`ALTER TABLE setting ADD COLUMN login_verify INTEGER NOT NULL DEFAULT 1;`,
+			`ALTER TABLE setting ADD COLUMN login_verify_count INTEGER NOT NULL DEFAULT 5;`
+		];
+
+		await Promise.all(statements.map(async statement => {
+			try {
+				await c.env.db.prepare(statement).run();
+			} catch (e) {
+				console.warn(`Skip login verification migration: ${e.message}`);
+			}
+		}));
 	},
 
 	async v3_0DB(c) {

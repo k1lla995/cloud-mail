@@ -19,6 +19,7 @@ import reqUtils from '../utils/req-utils';
 import {oauth} from "../entity/oauth";
 import oauthService from "./oauth-service";
 import adminUtils from '../utils/admin-utils';
+import accessControlService from '../security/access-control-service';
 
 const userService = {
 
@@ -121,6 +122,7 @@ const userService = {
 	async physicsDelete(c, params) {
 		let { userIds } = params;
 		userIds = userIds.split(',').map(Number);
+		await Promise.all(userIds.map(userId => accessControlService.assertCanManageUser(c, userId)));
 		await accountService.physicsDeleteByUserIds(c, userIds);
 		await oauthService.deleteByUserIds(c, userIds);
 		await orm(c).delete(user).where(inArray(user.userId, userIds)).run();
@@ -268,6 +270,7 @@ const userService = {
 	async setPwd(c, params) {
 
 		const { password, userId } = params;
+		await accessControlService.assertCanManageUser(c, userId);
 		await this.resetPassword(c, { password }, userId);
 		await c.env.kv.delete(KvConst.AUTH_INFO + userId);
 	},
@@ -275,6 +278,7 @@ const userService = {
 	async setStatus(c, params) {
 
 		const { status, userId } = params;
+		await accessControlService.assertCanManageUser(c, userId);
 
 		await orm(c)
 			.update(user)
@@ -290,6 +294,7 @@ const userService = {
 	async setType(c, params) {
 
 		const { type, userId } = params;
+		await accessControlService.assertCanManageUser(c, userId, type);
 
 		const roleRow = await roleService.selectById(c, type);
 
@@ -324,6 +329,7 @@ const userService = {
 	async add(c, params) {
 
 		const { email, type, password } = params;
+		await accessControlService.assertPermIdsWithinActor(c, await accessControlService.rolePermIds(c, type), { strict: true });
 
 		if (!c.env.domain.includes(emailUtils.getDomain(email))) {
 			throw new BizError(t('notEmailDomain'));
@@ -343,7 +349,7 @@ const userService = {
 			throw new BizError(t('isRegAccount'));
 		}
 
-		const role = roleService.selectById(c, type);
+		const role = await roleService.selectById(c, type);
 
 		if (!role) {
 			throw new BizError(t('roleNotExist'));
@@ -370,6 +376,7 @@ const userService = {
 
 	async restore(c, params) {
 		const { userId, type } = params
+		await accessControlService.assertCanManageUser(c, userId);
 		await orm(c)
 			.update(user)
 			.set({ isDel: isDel.NORMAL })

@@ -180,6 +180,7 @@ const en = {
     rules: 'Rules',
     turnstileSetting: 'Turnstile',
     signUpVerification: 'Sign Up Verification',
+    loginVerification: 'Login Verification',
     addEmailVerification: 'Add Email Verification',
     about: 'About',
     version: 'Version',

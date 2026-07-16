@@ -10,12 +10,19 @@ import user from '../entity/user';
 import verifyUtils from '../utils/verify-utils';
 import { t } from '../i18n/i18n.js';
 import emailUtils from '../utils/email-utils';
+import accessControlService from '../security/access-control-service';
 
 const roleService = {
 
 	async add(c, params, userId) {
 
 		let { name, permIds, banEmail, availDomain } = params;
+		const isRootAdmin = await accessControlService.isRootAdmin(c);
+		await accessControlService.assertPermIdsWithinActor(c, permIds, { strict: true });
+
+		if (!isRootAdmin && params.isDefault) {
+			throw new BizError(t('unauthorized'), 403);
+		}
 
 		if (!name) {
 			throw new BizError(t('emptyRoleName'));
@@ -65,6 +72,7 @@ const roleService = {
 	async setRole(c, params) {
 
 		let { name, permIds, roleId, banEmail, availDomain } = params;
+		await accessControlService.assertCanManageRole(c, roleId, permIds);
 
 		if (!name) {
 			throw new BizError(t('emptyRoleName'));
@@ -106,7 +114,10 @@ const roleService = {
 			throw new BizError(t('delDefRole'));
 		}
 
+		await accessControlService.assertCanManageRole(c, roleId);
+
 		const defRoleRow = await orm(c).select().from(role).where(eq(role.isDefault, roleConst.isDefault.OPEN)).get();
+		await accessControlService.assertCanManageRole(c, defRoleRow.roleId);
 
 		await userService.updateAllUserType(c, defRoleRow.roleId, roleId);
 
@@ -128,6 +139,7 @@ const roleService = {
 		if (!roleRow) {
 			throw new BizError(t('roleNotExist'));
 		}
+		await accessControlService.assertCanManageRole(c, params.roleId);
 		await orm(c).update(role).set({ isDefault: 0 }).run();
 		await orm(c).update(role).set({ isDefault: 1 }).where(eq(role.roleId, params.roleId)).run();
 	},

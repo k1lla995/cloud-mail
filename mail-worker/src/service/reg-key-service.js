@@ -2,6 +2,7 @@ import orm from '../entity/orm';
 import regKey from '../entity/reg-key';
 import { inArray, like, eq, desc, sql, or } from 'drizzle-orm';
 import roleService from './role-service';
+import accessControlService from '../security/access-control-service';
 import BizError from '../error/biz-error';
 import { formatDetailDate, toUtc } from '../utils/date-uitil';
 import userService from './user-service';
@@ -12,6 +13,7 @@ const regKeyService = {
 	async add(c, params, userId) {
 
 		let {code,roleId,count,expireTime} = params;
+		await accessControlService.assertPermIdsWithinActor(c, await accessControlService.rolePermIds(c, roleId), { strict: true });
 
 		if (!code) {
 			throw new BizError(t('emptyRegKey'));
@@ -31,7 +33,7 @@ const regKeyService = {
 			throw new BizError(t('isExistRegKye'));
 		}
 
-		const roleRow = roleService.selectById(c, roleId);
+		const roleRow = await roleService.selectById(c, roleId);
 		if (!roleRow) {
 			throw new BizError(t('roleNotExist'));
 		}

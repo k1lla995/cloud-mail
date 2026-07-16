@@ -13,6 +13,7 @@ import roleService from './role-service';
 import { t } from '../i18n/i18n';
 import verifyRecordService from './verify-record-service';
 import adminUtils from '../utils/admin-utils';
+import accessControlService from '../security/access-control-service';
 
 const accountService = {
 
@@ -243,6 +244,11 @@ const accountService = {
 
 	async physicsDelete(c, params) {
 		const { accountId } = params
+		const accountRow = await orm(c).select().from(account).where(eq(account.accountId, accountId)).get();
+		if (!accountRow) {
+			throw new BizError(t('notExist'));
+		}
+		await accessControlService.assertCanManageUser(c, accountRow.userId);
 		await emailService.physicsDeleteByAccountId(c, accountId)
 		await orm(c).delete(account).where(eq(account.accountId, accountId)).run();
 	},

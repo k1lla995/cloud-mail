@@ -236,15 +236,25 @@ const loginService = {
 
 	async login(c, params, noVerifyPwd = false) {
 
-		const { email, password } = params;
+		const { email, password, token } = params;
 
 		if ((!email || !password) && !noVerifyPwd) {
 			throw new BizError(t('emailAndPwdEmpty'));
 		}
 
+		const { loginVerify, loginVerifyCount } = await settingService.query(c);
+		if (!noVerifyPwd && loginVerify === settingConst.registerVerify.OPEN) {
+			await turnstileService.verify(c, token);
+		}
+		if (!noVerifyPwd && loginVerify === settingConst.registerVerify.COUNT &&
+			await verifyRecordService.isOpenLoginVerify(c, loginVerifyCount)) {
+			await turnstileService.verify(c, token);
+		}
+
 		const userRow = await userService.selectByEmailIncludeDel(c, email);
 
 		if (!userRow) {
+			await verifyRecordService.increaseLoginCount(c);
 			throw new BizError(t('notExistUser'));
 		}
 
@@ -257,7 +267,12 @@ const loginService = {
 		}
 
 		if (!await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password) && !noVerifyPwd) {
+			await verifyRecordService.increaseLoginCount(c);
 			throw new BizError(t('IncorrectPwd'));
+		}
+
+		if (!noVerifyPwd) {
+			await verifyRecordService.clearLoginCount(c);
 		}
 
 		const uuid = uuidv4();

@@ -37,6 +37,14 @@
           </el-input>
           <el-input v-model="form.password" :placeholder="$t('password')" type="password" autocomplete="off">
           </el-input>
+          <div v-show="loginVerifyShow"
+               class="login-turnstile"
+               :data-sitekey="settingStore.settings.siteKey"
+               data-callback="onLoginTurnstileSuccess"
+               data-error-callback="onLoginTurnstileError"
+          >
+            <span style="font-size: 12px;color: #F56C6C" v-if="loginBotJsError">{{ $t('verifyModuleFailed') }}</span>
+          </div>
           <el-button class="btn" type="primary" @click="submit" :loading="loginLoading"
           >{{ $t('loginBtn') }}
           </el-button>
@@ -149,6 +157,11 @@ let verifyToken = ''
 let turnstileId = null
 let botJsError = ref(false)
 let verifyErrorCount = 0
+const loginVerifyShow = ref(false)
+let loginVerifyToken = ''
+let loginTurnstileId = null
+const loginBotJsError = ref(false)
+let loginVerifyErrorCount = 0
 
 window.onTurnstileSuccess = (token) => {
   verifyToken = token;
@@ -171,6 +184,20 @@ window.onTurnstileError = (e) => {
   }, 1500)
 };
 
+window.onLoginTurnstileSuccess = (token) => {
+  loginVerifyToken = token;
+};
+
+window.onLoginTurnstileError = () => {
+  if (loginVerifyErrorCount >= 4) {
+    return
+  }
+  loginVerifyErrorCount++
+  setTimeout(() => {
+    renderLoginTurnstile(true)
+  }, 1500)
+};
+
 window.loadAfter = (e) => {
   console.log('loadAfter')
 }
@@ -185,6 +212,10 @@ const loginOpacity = computed(() => {
 })
 
 const hideLoginDomain = computed(() => settingStore.settings.loginDomain === 1)
+const requiresLoginVerification = computed(() => {
+  return settingStore.settings.loginVerify === 0 ||
+      (settingStore.settings.loginVerify === 2 && settingStore.settings.loginVerifyOpen)
+})
 
 const background = computed(() => {
 
@@ -206,6 +237,21 @@ const getFullEmail = (email) => {
 
 const getEmailName = (email) => {
   return email.split('@')[0]
+}
+
+function renderLoginTurnstile(reset = false) {
+  loginVerifyShow.value = true
+  nextTick(() => {
+    try {
+      if (!loginTurnstileId) {
+        loginTurnstileId = window.turnstile.render('.login-turnstile')
+      } else if (reset) {
+        window.turnstile.reset(loginTurnstileId)
+      }
+    } catch (e) {
+      loginBotJsError.value = true
+    }
+  })
 }
 
 const submit = () => {
@@ -239,9 +285,36 @@ const submit = () => {
     return
   }
 
+  if (!loginVerifyToken && requiresLoginVerification.value) {
+    renderLoginTurnstile()
+    if (!loginBotJsError.value) {
+      ElMessage({
+        message: t('botVerifyMsg'),
+        type: 'error',
+        plain: true
+      })
+    }
+    return
+  }
+
   loginLoading.value = true
-  login(email, form.password).then(async data => {
+  login(email, form.password, loginVerifyToken).then(async data => {
     await saveToken(data.token)
+  }).catch(res => {
+    if (requiresLoginVerification.value || res.code === 400) {
+      loginVerifyToken = ''
+      if (res.code === 400) {
+        settingStore.settings.loginVerifyOpen = true
+      }
+      renderLoginTurnstile(true)
+    }
+    if (res.code === 501 && settingStore.settings.loginVerify === 2) {
+      refreshWebsiteConfig().then(() => {
+        if (requiresLoginVerification.value) {
+          renderLoginTurnstile()
+        }
+      })
+    }
   }).finally(() => {
     loginLoading.value = false
   })
@@ -263,7 +336,7 @@ async function saveToken(token) {
 }
 
 function refreshWebsiteConfig() {
-  websiteConfig().then(setting => {
+  return websiteConfig().then(setting => {
     settingStore.settings = setting
     settingStore.domainList = setting.domainList
     if (!suffix.value && setting.domainList.length > 0) {
@@ -596,6 +669,10 @@ function submitRegister() {
 }
 
 .register-turnstile {
+  margin-bottom: 18px;
+}
+
+.login-turnstile {
   margin-bottom: 18px;
 }
 
