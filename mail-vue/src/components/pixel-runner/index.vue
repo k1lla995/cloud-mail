@@ -2,55 +2,11 @@
   <section
       class="pixel-runner"
       ref="runnerRef"
-      :class="{'is-liquid-glass': props.glassEnabled}"
+      :class="{'is-liquid-glass': props.glassEnabled, 'is-resizing': isResizing}"
       :style="runnerStyle"
       :aria-label="t('runnerCanvasLabel')"
+      @pointerdown="handleRunnerPointerDown"
   >
-    <header class="runner-toolbar" @click.stop>
-      <div class="runner-scale-control">
-        <button
-            type="button"
-            class="scale-button"
-            :aria-label="t('runnerZoomOut')"
-            :disabled="gameScale <= minGameScale"
-            @click="adjustGameScale(-5)"
-        >
-          <Icon icon="material-symbols:zoom-out-rounded" width="18" height="18"/>
-        </button>
-        <label class="scale-range">
-          <span class="sr-only">{{ t('runnerZoom') }}</span>
-          <input
-              type="range"
-              :value="gameScale"
-              :min="minGameScale"
-              :max="maxGameScale"
-              step="1"
-              :aria-label="t('runnerZoom')"
-              @input="setGameScale($event.target.value)"
-              @keydown.stop
-          >
-        </label>
-        <output class="scale-value" aria-live="polite">{{ gameScale }}%</output>
-        <button
-            type="button"
-            class="scale-button"
-            :aria-label="t('runnerZoomIn')"
-            :disabled="gameScale >= maxGameScale"
-            @click="adjustGameScale(5)"
-        >
-          <Icon icon="material-symbols:zoom-in-rounded" width="18" height="18"/>
-        </button>
-        <button
-            type="button"
-            class="scale-button reset-scale-button"
-            :aria-label="t('runnerZoomReset')"
-            @click="resetGameScale"
-        >
-          <Icon icon="material-symbols:restart-alt-rounded" width="18" height="18"/>
-        </button>
-      </div>
-    </header>
-
     <div class="canvas-wrap">
       <canvas
           ref="canvasRef"
@@ -58,6 +14,7 @@
           height="240"
           role="img"
           :aria-label="t('runnerCanvasLabel')"
+          @click="handleCanvasClick"
       ></canvas>
 
       <Transition name="game-over">
@@ -72,7 +29,27 @@
           </div>
         </div>
       </Transition>
+
+      <Transition name="game-pause">
+        <div v-if="isInteractionPaused && !gameOver && !isResizing" class="game-paused-hint" aria-live="polite">
+          <Icon icon="material-symbols:pause-rounded" width="18" height="18"/>
+          <span>{{ t('runnerPaused') }}</span>
+          <small>{{ t('runnerResumeHint') }}</small>
+        </div>
+      </Transition>
     </div>
+
+    <button
+        v-for="handle in resizeHandles"
+        :key="handle"
+        type="button"
+        class="resize-handle"
+        :class="`resize-handle--${handle}`"
+        :aria-label="t('runnerResizeHandle')"
+        @pointerdown.stop.prevent="startResize($event, handle)"
+    >
+      <span class="sr-only">{{ t('runnerResizeHandle') }}</span>
+    </button>
   </section>
 </template>
 
@@ -92,75 +69,154 @@ const canvasRef = ref(null)
 const runnerRef = ref(null)
 const gameOver = ref(false)
 const finalScore = ref(0)
+const isInteractionPaused = ref(false)
+const isResizing = ref(false)
 
 const CANVAS_WIDTH = 768
 const CANVAS_HEIGHT = 240
 const GROUND_Y = 196
-const MIN_GAME_SCALE = 35
-const MAX_GAME_SCALE = 135
-const DEFAULT_GAME_SCALE = 100
-const GAME_SCALE_STORAGE_KEY = 'mailplus.login-runner-scale'
+const GAME_ASPECT_RATIO = CANVAS_WIDTH / CANVAS_HEIGHT
+const MIN_GAME_WIDTH = 268
+const MAX_GAME_WIDTH = Math.round(CANVAS_WIDTH * 1.35)
+const DEFAULT_GAME_WIDTH = CANVAS_WIDTH
+const GAME_SIZE_STORAGE_KEY = 'mailplus.login-runner-width'
+const LEGACY_GAME_SCALE_STORAGE_KEY = 'mailplus.login-runner-scale'
+const resizeHandles = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw']
 
-const gameScale = ref(DEFAULT_GAME_SCALE)
-const minGameScale = ref(MIN_GAME_SCALE)
-const maxGameScale = ref(MAX_GAME_SCALE)
+const gameWidth = ref(DEFAULT_GAME_WIDTH)
+const minGameWidth = ref(MIN_GAME_WIDTH)
+const maxGameWidth = ref(MAX_GAME_WIDTH)
 const runnerStyle = computed(() => ({
-  width: `${Math.round(CANVAS_WIDTH * gameScale.value / 100)}px`,
+  width: `${gameWidth.value}px`,
 }))
 
 let game = null
-let scaleResizeObserver = null
+let sizeResizeObserver = null
+let resizeSession = null
+let resizeFrame = null
+let pendingGameWidth = null
 
-function normalizeGameScale(value, minimum = minGameScale.value, maximum = maxGameScale.value) {
+function normalizeGameWidth(value, minimum = minGameWidth.value, maximum = maxGameWidth.value) {
   const parsed = Number.parseFloat(value)
-  if (!Number.isFinite(parsed)) return DEFAULT_GAME_SCALE
+  if (!Number.isFinite(parsed)) return Math.min(maximum, Math.max(minimum, DEFAULT_GAME_WIDTH))
   return Math.min(maximum, Math.max(minimum, Math.round(parsed)))
 }
 
-function restoreGameScale() {
+function restoreGameWidth() {
   try {
-    return normalizeGameScale(window.localStorage.getItem(GAME_SCALE_STORAGE_KEY))
+    const savedWidth = window.localStorage.getItem(GAME_SIZE_STORAGE_KEY)
+    if (savedWidth) return normalizeGameWidth(savedWidth)
+
+    const legacyScale = Number.parseFloat(window.localStorage.getItem(LEGACY_GAME_SCALE_STORAGE_KEY))
+    return Number.isFinite(legacyScale) ? normalizeGameWidth(CANVAS_WIDTH * legacyScale / 100) : DEFAULT_GAME_WIDTH
   } catch {
-    return DEFAULT_GAME_SCALE
+    return DEFAULT_GAME_WIDTH
   }
 }
 
-function setGameScale(value) {
-  const nextScale = normalizeGameScale(value)
-  gameScale.value = nextScale
-
+function persistGameWidth() {
   try {
-    window.localStorage.setItem(GAME_SCALE_STORAGE_KEY, String(nextScale))
+    window.localStorage.setItem(GAME_SIZE_STORAGE_KEY, String(gameWidth.value))
   } catch {
-    // Browsers with disabled storage can still use the control for this session.
+    // Browsers with disabled storage can still resize for the current session.
   }
 }
 
-function adjustGameScale(amount) {
-  setGameScale(gameScale.value + amount)
-}
-
-function resetGameScale() {
-  setGameScale(DEFAULT_GAME_SCALE)
-}
-
-function updateAvailableScale() {
+function updateAvailableSize() {
   const wrapper = runnerRef.value?.parentElement
   if (!wrapper) return
 
   const wrapperStyle = window.getComputedStyle(wrapper)
   const horizontalPadding = Number.parseFloat(wrapperStyle.paddingLeft) + Number.parseFloat(wrapperStyle.paddingRight)
   const availableWidth = wrapper.clientWidth - horizontalPadding
-  const availableScale = Math.round((availableWidth / CANVAS_WIDTH) * 100)
 
-  maxGameScale.value = Math.max(1, Math.min(MAX_GAME_SCALE, availableScale))
-  minGameScale.value = Math.min(MIN_GAME_SCALE, maxGameScale.value)
-  if (gameScale.value > maxGameScale.value) {
-    gameScale.value = maxGameScale.value
+  maxGameWidth.value = Math.max(1, Math.min(MAX_GAME_WIDTH, Math.round(availableWidth)))
+  minGameWidth.value = Math.min(MIN_GAME_WIDTH, maxGameWidth.value)
+  gameWidth.value = normalizeGameWidth(gameWidth.value)
+}
+
+function pauseGame() {
+  if (gameOver.value) return
+  isInteractionPaused.value = true
+  game?.pause()
+}
+
+function resumeGame() {
+  if (gameOver.value || isResizing.value || document.hidden) return
+  isInteractionPaused.value = false
+  game?.resume()
+}
+
+function handleRunnerPointerDown(event) {
+  if (event.button !== 0 || event.target.closest('.resize-handle, .game-over-backdrop')) return
+  resumeGame()
+}
+
+function handleCanvasClick(event) {
+  if (event.button !== 0 || gameOver.value || isResizing.value) return
+  game?.jump()
+}
+
+function calculateResizeWidth(event) {
+  const {direction, startX, startY, startWidth} = resizeSession
+  const horizontalDelta = direction.includes('e') ? event.clientX - startX : startX - event.clientX
+  const verticalDelta = (direction.includes('s') ? event.clientY - startY : startY - event.clientY) * GAME_ASPECT_RATIO
+
+  if (direction.length === 1) {
+    return startWidth + (direction === 'e' || direction === 'w' ? horizontalDelta : verticalDelta)
   }
-  if (gameScale.value < minGameScale.value) {
-    gameScale.value = minGameScale.value
+
+  return startWidth + (Math.abs(horizontalDelta) >= Math.abs(verticalDelta) ? horizontalDelta : verticalDelta)
+}
+
+function queueResize(width) {
+  pendingGameWidth = normalizeGameWidth(width)
+  if (resizeFrame) return
+
+  resizeFrame = requestAnimationFrame(() => {
+    gameWidth.value = pendingGameWidth
+    resizeFrame = null
+  })
+}
+
+function handleResizeMove(event) {
+  if (!resizeSession || event.pointerId !== resizeSession.pointerId) return
+  queueResize(calculateResizeWidth(event))
+}
+
+function finishResize(event) {
+  if (!resizeSession || (event?.pointerId && event.pointerId !== resizeSession.pointerId)) return
+  if (resizeFrame) {
+    cancelAnimationFrame(resizeFrame)
+    resizeFrame = null
   }
+  if (pendingGameWidth !== null) gameWidth.value = pendingGameWidth
+
+  persistGameWidth()
+  pendingGameWidth = null
+  resizeSession = null
+  isResizing.value = false
+  document.removeEventListener('pointermove', handleResizeMove)
+  document.removeEventListener('pointerup', finishResize)
+  document.removeEventListener('pointercancel', finishResize)
+}
+
+function startResize(event, direction) {
+  if (event.button !== 0 || !runnerRef.value) return
+
+  pauseGame()
+  isResizing.value = true
+  resizeSession = {
+    direction,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    startWidth: gameWidth.value,
+  }
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+  document.addEventListener('pointermove', handleResizeMove)
+  document.addEventListener('pointerup', finishResize)
+  document.addEventListener('pointercancel', finishResize)
 }
 
 class Player {
@@ -455,36 +511,49 @@ function isEditableElement(element) {
   return Boolean(element.closest('input, textarea, select, button, a, [contenteditable="true"], .form-wrapper, .el-dialog'))
 }
 
+function isInsideRunner(element) {
+  return element instanceof Node && runnerRef.value?.contains(element)
+}
+
 function handleKeydown(event) {
-  if (event.code !== 'Space' || event.repeat || isEditableElement(document.activeElement)) return
+  if (isEditableElement(event.target) || isEditableElement(document.activeElement)) {
+    pauseGame()
+    return
+  }
+  if (event.code !== 'Space' || event.repeat || isInteractionPaused.value) return
   event.preventDefault()
   game?.jump()
 }
 
-function handleGlobalClick(event) {
-  if (event.button !== 0 || isEditableElement(event.target) || isEditableElement(document.activeElement)) return
-  game?.jump()
+function handleDocumentPointerDown(event) {
+  if (event.button !== 0 || isInsideRunner(event.target)) return
+  pauseGame()
+}
+
+function handleFocusIn(event) {
+  if (isEditableElement(event.target) && !isInsideRunner(event.target)) pauseGame()
 }
 
 function handleVisibilityChange() {
   if (document.hidden) game?.pause()
-  else game?.resume()
+  else if (!isInteractionPaused.value) game?.resume()
 }
 
 function restartGame() {
   finalScore.value = 0
   gameOver.value = false
+  isInteractionPaused.value = false
   game?.reset()
 }
 
 onMounted(() => {
-  updateAvailableScale()
-  gameScale.value = normalizeGameScale(restoreGameScale())
+  updateAvailableSize()
+  gameWidth.value = normalizeGameWidth(restoreGameWidth())
   if ('ResizeObserver' in window) {
-    scaleResizeObserver = new ResizeObserver(updateAvailableScale)
-    scaleResizeObserver.observe(runnerRef.value.parentElement)
+    sizeResizeObserver = new ResizeObserver(updateAvailableSize)
+    sizeResizeObserver.observe(runnerRef.value.parentElement)
   } else {
-    window.addEventListener('resize', updateAvailableScale)
+    window.addEventListener('resize', updateAvailableSize)
   }
 
   game = new Game(canvasRef.value, score => {
@@ -493,16 +562,19 @@ onMounted(() => {
   }, () => props.glassEnabled)
 
   window.addEventListener('keydown', handleKeydown)
-  window.addEventListener('click', handleGlobalClick)
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+  document.addEventListener('focusin', handleFocusIn)
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onBeforeUnmount(() => {
   game?.destroy()
-  scaleResizeObserver?.disconnect()
-  window.removeEventListener('resize', updateAvailableScale)
+  finishResize()
+  sizeResizeObserver?.disconnect()
+  window.removeEventListener('resize', updateAvailableSize)
   window.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener('click', handleGlobalClick)
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+  document.removeEventListener('focusin', handleFocusIn)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
@@ -514,7 +586,7 @@ onBeforeUnmount(() => {
   isolation: isolate;
   width: min(720px, 100%);
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   border: 3px solid var(--pixel-ink);
   border-radius: 6px;
   background: #f8e6ad;
@@ -574,94 +646,139 @@ onBeforeUnmount(() => {
   }
 }
 
-.runner-toolbar {
-  min-height: 42px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  color: var(--pixel-ink);
-  background: #ffd45b;
-  border-bottom: 3px solid var(--pixel-ink);
-}
-
-.is-liquid-glass .runner-toolbar {
-  position: relative;
-  z-index: 2;
-  background: rgba(255, 255, 255, 0.10);
-  background: color-mix(in srgb, var(--el-bg-color) 12%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--pixel-ink) 18%, transparent);
-}
-
-.runner-scale-control {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.scale-button {
-  width: 27px;
-  height: 27px;
+.resize-handle {
+  position: absolute;
+  z-index: 20;
+  display: block;
   padding: 0;
-  display: inline-grid;
-  place-items: center;
-  color: var(--pixel-ink);
-  background: rgba(255, 255, 255, 0.34);
-  border: 2px solid var(--pixel-ink);
-  border-radius: 3px;
-  box-shadow: 2px 2px 0 rgba(20, 45, 61, 0.22);
-  cursor: pointer;
-}
-
-.scale-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.68);
-}
-
-.scale-button:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 rgba(20, 45, 61, 0.22);
-}
-
-.scale-button:disabled {
-  cursor: not-allowed;
+  border: 0;
+  background: transparent;
   opacity: 0.38;
+  touch-action: none;
+  transition: opacity 160ms ease;
 }
 
-.is-liquid-glass .scale-button {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid color-mix(in srgb, var(--pixel-ink) 20%, transparent);
-  border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  background: var(--pixel-ink);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.68);
 }
 
-.is-liquid-glass .scale-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.24);
+.pixel-runner:hover .resize-handle,
+.pixel-runner:focus-within .resize-handle,
+.pixel-runner.is-resizing .resize-handle {
+  opacity: 0.92;
 }
 
-.scale-range {
-  width: clamp(78px, 13vw, 128px);
-  display: flex;
-  align-items: center;
+.resize-handle--n,
+.resize-handle--s {
+  left: 26px;
+  right: 26px;
+  height: 14px;
+  cursor: ns-resize;
 }
 
-.scale-range input {
-  width: 100%;
-  margin: 0;
-  accent-color: #1769aa;
+.resize-handle--n {
+  top: -7px;
+}
+
+.resize-handle--s {
+  bottom: -7px;
+}
+
+.resize-handle--n::after,
+.resize-handle--s::after {
+  top: 5px;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+
+.resize-handle--e,
+.resize-handle--w {
+  top: 26px;
+  bottom: 26px;
+  width: 14px;
   cursor: ew-resize;
 }
 
-.scale-value {
-  width: 39px;
-  color: var(--pixel-ink);
-  font-size: 12px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+.resize-handle--e {
+  right: -7px;
 }
 
-.reset-scale-button {
-  margin-left: 1px;
+.resize-handle--w {
+  left: -7px;
+}
+
+.resize-handle--e::after,
+.resize-handle--w::after {
+  top: 50%;
+  left: 5px;
+  width: 4px;
+  height: 34px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+}
+
+.resize-handle--ne,
+.resize-handle--nw,
+.resize-handle--se,
+.resize-handle--sw {
+  width: 18px;
+  height: 18px;
+}
+
+.resize-handle--ne,
+.resize-handle--nw {
+  top: -9px;
+}
+
+.resize-handle--se,
+.resize-handle--sw {
+  bottom: -9px;
+}
+
+.resize-handle--ne,
+.resize-handle--se {
+  right: -9px;
+}
+
+.resize-handle--nw,
+.resize-handle--sw {
+  left: -9px;
+}
+
+.resize-handle--ne,
+.resize-handle--sw {
+  cursor: nesw-resize;
+}
+
+.resize-handle--nw,
+.resize-handle--se {
+  cursor: nwse-resize;
+}
+
+.resize-handle--ne::after,
+.resize-handle--nw::after,
+.resize-handle--se::after,
+.resize-handle--sw::after {
+  top: 4px;
+  left: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.is-liquid-glass .resize-handle::after {
+  background: color-mix(in srgb, var(--pixel-ink) 84%, white);
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.24);
+}
+
+:global(.dark) .is-liquid-glass .resize-handle::after {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .sr-only {
@@ -680,6 +797,7 @@ onBeforeUnmount(() => {
   position: relative;
   aspect-ratio: 768 / 240;
   overflow: hidden;
+  border-radius: inherit;
 }
 
 .is-liquid-glass .canvas-wrap {
@@ -693,6 +811,46 @@ canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: pointer;
+}
+
+.game-paused-hint {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 50%;
+  min-width: 138px;
+  padding: 9px 13px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 7px;
+  color: var(--pixel-ink);
+  background: rgba(255, 244, 199, 0.88);
+  border: 2px solid var(--pixel-ink);
+  box-shadow: 4px 4px 0 rgba(20, 45, 61, 0.24);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.game-paused-hint span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.game-paused-hint small {
+  grid-column: 2;
+  margin-top: 1px;
+  font-size: 10px;
+  opacity: 0.76;
+}
+
+.is-liquid-glass .game-paused-hint {
+  background: rgba(248, 250, 252, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 14px 36px rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(14px) saturate(150%) brightness(1.04);
+  -webkit-backdrop-filter: blur(14px) saturate(150%) brightness(1.04);
 }
 
 .game-over-backdrop {
@@ -779,16 +937,21 @@ canvas {
   opacity: 0;
 }
 
+.game-pause-enter-active,
+.game-pause-leave-active {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.game-pause-enter-from,
+.game-pause-leave-to {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 6px));
+}
+
 @media (max-width: 480px) {
   .pixel-runner {
     border-width: 2px;
     box-shadow: 5px 5px 0 rgba(20, 45, 61, 0.2);
-  }
-
-  .runner-toolbar {
-    min-height: 38px;
-    padding: 0 8px;
-    border-bottom-width: 2px;
   }
 
   .pixel-runner.is-liquid-glass {
@@ -799,17 +962,16 @@ canvas {
         0 14px 38px rgba(15, 23, 42, 0.18);
   }
 
-  .runner-scale-control {
-    gap: 5px;
+  .resize-handle--n,
+  .resize-handle--s {
+    left: 18px;
+    right: 18px;
   }
 
-  .scale-button {
-    width: 25px;
-    height: 25px;
-  }
-
-  .scale-range {
-    width: clamp(64px, 18vw, 96px);
+  .resize-handle--e,
+  .resize-handle--w {
+    top: 18px;
+    bottom: 18px;
   }
 
   .game-over-modal {
