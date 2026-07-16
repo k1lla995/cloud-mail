@@ -71,6 +71,14 @@
                   </el-button>
                 </div>
               </div>
+              <el-alert
+                  v-if="userStore.user.type === 0"
+                  class="admin-init-notice"
+                  :title="$t('adminDatabaseInitNotice')"
+                  type="info"
+                  :closable="false"
+                  show-icon
+              />
             </div>
           </div>
 
@@ -1678,6 +1686,25 @@ function editSetting(settingForm, refreshStatus = true) {
     grid-template-columns: 1fr auto;
     justify-items: flex-end;
     font-weight: normal;
+  }
+}
+
+.admin-init-notice {
+  margin-top: 6px;
+  background: #f4fbff !important;
+  border: 1px solid #86bddb;
+  border-left: 3px solid #1976a7;
+  border-radius: 6px;
+  color: #143852 !important;
+  overflow-wrap: anywhere;
+
+  :deep(.el-alert__title) {
+    color: #143852 !important;
+    line-height: 1.5;
+  }
+
+  :deep(.el-alert__icon) {
+    color: #1976a7 !important;
   }
 }
 

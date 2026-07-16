@@ -143,6 +143,7 @@ const en = {
     loginSwitch: 'Sign in',
     websiteSetting: 'Website',
     websiteReg: 'Sign Up',
+    adminDatabaseInitNotice: 'After updating or repairing the database, open https://your-domain/api/init/your-jwt_secret in a browser to initialize the database.',
     loginDomain: 'Hide Sign-In Domain',
     multipleEmail: 'Multiple Email Address',
     multipleEmailDesc: 'Enable this feature to allow users to add multiple email',

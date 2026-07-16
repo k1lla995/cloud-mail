@@ -143,6 +143,7 @@ const zh = {
     loginSwitch: '去登录',
     websiteSetting: '网站设置',
     websiteReg: '用户注册',
+    adminDatabaseInitNotice: '建议每次更新或者修复数据库后，在浏览器执行 https://你的域名/api/init/你的jwt_secret，用以初始化数据库。',
     loginDomain: '隐藏登录域名',
     multipleEmail: '多号模式',
     multipleEmailDesc: '开启后账号栏出现一个用户可以添加多个邮箱',
