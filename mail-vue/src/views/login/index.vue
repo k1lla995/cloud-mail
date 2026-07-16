@@ -1,7 +1,7 @@
 <template>
   <div id="login-box">
     <div class="login-background" :style="background"></div>
-    <div class="game-wrapper">
+    <div v-if="settingStore.settings.loginGame !== 0" class="game-wrapper">
       <PixelRunner :glass-enabled="settingStore.settings.loginGlass !== 0"/>
     </div>
     <div class="form-wrapper">

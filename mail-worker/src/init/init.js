@@ -31,6 +31,7 @@ const dbInit = {
 		await this.v3_0DB(c);
 		await this.v3_1DB(c);
 		await this.v3_2DB(c);
+		await this.v3_3DB(c);
 		await settingService.refresh(c);
 		return c.text('success');
 	},
@@ -61,6 +62,14 @@ const dbInit = {
 	async v3_2DB(c) {
 		try {
 			await c.env.db.prepare(`alter table setting add column login_glass integer not null default 1;`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v3_3DB(c) {
+		try {
+			await c.env.db.prepare(`alter table setting add column login_game integer not null default 1;`).run();
 		} catch (e) {
 			console.warn(`跳过字段：${e.message}`);
 		}

@@ -25,6 +25,7 @@ export const setting = sqliteTable('setting', {
 	ruleType: integer('rule_type').default(0).notNull(),
 	loginOpacity: integer('login_opacity').default(0.88),
 	loginGlass: integer('login_glass').default(1).notNull(),
+	loginGame: integer('login_game').default(1).notNull(),
 	primaryColor: text('primary_color').default('#1890ff').notNull(),
 	resendTokens: text('resend_tokens').default("{}").notNull(),
 	noticeTitle: text('notice_title').default('').notNull(),

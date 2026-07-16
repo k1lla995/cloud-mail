@@ -216,6 +216,7 @@ const settingService = {
 			background: settingRow.background,
 			loginOpacity: settingRow.loginOpacity,
 			loginGlass: settingRow.loginGlass,
+			loginGame: settingRow.loginGame,
 			primaryColor: settingRow.primaryColor,
 			domainList: settingRow.loginDomain === 1 && !token ? [] : settingRow.domainList,
 			regKey: settingRow.regKey,

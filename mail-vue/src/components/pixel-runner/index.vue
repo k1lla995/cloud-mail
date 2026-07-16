@@ -1,14 +1,53 @@
 <template>
-  <section class="pixel-runner" :class="{'is-liquid-glass': props.glassEnabled}" :aria-label="t('runnerTitle')">
-    <header class="runner-toolbar">
-      <div class="runner-title">
-        <span class="status-light" aria-hidden="true"></span>
-        <span>{{ t('runnerTitle') }}</span>
-      </div>
-      <div class="runner-controls" aria-hidden="true">
-        <Icon icon="material-symbols:space-bar-rounded" width="20" height="20"/>
-        <span class="control-divider"></span>
-        <Icon icon="solar:mouse-minimalistic-linear" width="18" height="18"/>
+  <section
+      class="pixel-runner"
+      ref="runnerRef"
+      :class="{'is-liquid-glass': props.glassEnabled}"
+      :style="runnerStyle"
+      :aria-label="t('runnerCanvasLabel')"
+  >
+    <header class="runner-toolbar" @click.stop>
+      <div class="runner-scale-control">
+        <button
+            type="button"
+            class="scale-button"
+            :aria-label="t('runnerZoomOut')"
+            :disabled="gameScale <= minGameScale"
+            @click="adjustGameScale(-5)"
+        >
+          <Icon icon="material-symbols:zoom-out-rounded" width="18" height="18"/>
+        </button>
+        <label class="scale-range">
+          <span class="sr-only">{{ t('runnerZoom') }}</span>
+          <input
+              type="range"
+              :value="gameScale"
+              :min="minGameScale"
+              :max="maxGameScale"
+              step="1"
+              :aria-label="t('runnerZoom')"
+              @input="setGameScale($event.target.value)"
+              @keydown.stop
+          >
+        </label>
+        <output class="scale-value" aria-live="polite">{{ gameScale }}%</output>
+        <button
+            type="button"
+            class="scale-button"
+            :aria-label="t('runnerZoomIn')"
+            :disabled="gameScale >= maxGameScale"
+            @click="adjustGameScale(5)"
+        >
+          <Icon icon="material-symbols:zoom-in-rounded" width="18" height="18"/>
+        </button>
+        <button
+            type="button"
+            class="scale-button reset-scale-button"
+            :aria-label="t('runnerZoomReset')"
+            @click="resetGameScale"
+        >
+          <Icon icon="material-symbols:restart-alt-rounded" width="18" height="18"/>
+        </button>
       </div>
     </header>
 
@@ -38,7 +77,7 @@
 </template>
 
 <script setup>
-import {onBeforeUnmount, onMounted, ref} from 'vue'
+import {computed, onBeforeUnmount, onMounted, ref} from 'vue'
 import {Icon} from '@iconify/vue'
 import {useI18n} from 'vue-i18n'
 
@@ -50,14 +89,79 @@ const props = defineProps({
   },
 })
 const canvasRef = ref(null)
+const runnerRef = ref(null)
 const gameOver = ref(false)
 const finalScore = ref(0)
 
 const CANVAS_WIDTH = 768
 const CANVAS_HEIGHT = 240
 const GROUND_Y = 196
+const MIN_GAME_SCALE = 35
+const MAX_GAME_SCALE = 135
+const DEFAULT_GAME_SCALE = 100
+const GAME_SCALE_STORAGE_KEY = 'mailplus.login-runner-scale'
+
+const gameScale = ref(DEFAULT_GAME_SCALE)
+const minGameScale = ref(MIN_GAME_SCALE)
+const maxGameScale = ref(MAX_GAME_SCALE)
+const runnerStyle = computed(() => ({
+  width: `${Math.round(CANVAS_WIDTH * gameScale.value / 100)}px`,
+}))
 
 let game = null
+let scaleResizeObserver = null
+
+function normalizeGameScale(value, minimum = minGameScale.value, maximum = maxGameScale.value) {
+  const parsed = Number.parseFloat(value)
+  if (!Number.isFinite(parsed)) return DEFAULT_GAME_SCALE
+  return Math.min(maximum, Math.max(minimum, Math.round(parsed)))
+}
+
+function restoreGameScale() {
+  try {
+    return normalizeGameScale(window.localStorage.getItem(GAME_SCALE_STORAGE_KEY))
+  } catch {
+    return DEFAULT_GAME_SCALE
+  }
+}
+
+function setGameScale(value) {
+  const nextScale = normalizeGameScale(value)
+  gameScale.value = nextScale
+
+  try {
+    window.localStorage.setItem(GAME_SCALE_STORAGE_KEY, String(nextScale))
+  } catch {
+    // Browsers with disabled storage can still use the control for this session.
+  }
+}
+
+function adjustGameScale(amount) {
+  setGameScale(gameScale.value + amount)
+}
+
+function resetGameScale() {
+  setGameScale(DEFAULT_GAME_SCALE)
+}
+
+function updateAvailableScale() {
+  const wrapper = runnerRef.value?.parentElement
+  if (!wrapper) return
+
+  const wrapperStyle = window.getComputedStyle(wrapper)
+  const horizontalPadding = Number.parseFloat(wrapperStyle.paddingLeft) + Number.parseFloat(wrapperStyle.paddingRight)
+  const availableWidth = wrapper.clientWidth - horizontalPadding
+  const availableScale = Math.round((availableWidth / CANVAS_WIDTH) * 100)
+
+  maxGameScale.value = Math.max(1, Math.min(MAX_GAME_SCALE, availableScale))
+  minGameScale.value = Math.min(MIN_GAME_SCALE, maxGameScale.value)
+  if (gameScale.value > maxGameScale.value) {
+    gameScale.value = maxGameScale.value
+  }
+  if (gameScale.value < minGameScale.value) {
+    gameScale.value = minGameScale.value
+  }
+}
 
 class Player {
   constructor() {
@@ -374,6 +478,15 @@ function restartGame() {
 }
 
 onMounted(() => {
+  updateAvailableScale()
+  gameScale.value = normalizeGameScale(restoreGameScale())
+  if ('ResizeObserver' in window) {
+    scaleResizeObserver = new ResizeObserver(updateAvailableScale)
+    scaleResizeObserver.observe(runnerRef.value.parentElement)
+  } else {
+    window.addEventListener('resize', updateAvailableScale)
+  }
+
   game = new Game(canvasRef.value, score => {
     finalScore.value = score
     gameOver.value = true
@@ -386,6 +499,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   game?.destroy()
+  scaleResizeObserver?.disconnect()
+  window.removeEventListener('resize', updateAvailableScale)
   window.removeEventListener('keydown', handleKeydown)
   window.removeEventListener('click', handleGlobalClick)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -398,6 +513,7 @@ onBeforeUnmount(() => {
   position: relative;
   isolation: isolate;
   width: min(720px, 100%);
+  max-width: 100%;
   overflow: hidden;
   border: 3px solid var(--pixel-ink);
   border-radius: 6px;
@@ -459,11 +575,11 @@ onBeforeUnmount(() => {
 }
 
 .runner-toolbar {
-  height: 38px;
-  padding: 0 12px;
+  min-height: 42px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   color: var(--pixel-ink);
   background: #ffd45b;
   border-bottom: 3px solid var(--pixel-ink);
@@ -477,36 +593,87 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid color-mix(in srgb, var(--pixel-ink) 18%, transparent);
 }
 
-.runner-title,
-.runner-controls {
+.runner-scale-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.scale-button {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: var(--pixel-ink);
+  background: rgba(255, 255, 255, 0.34);
+  border: 2px solid var(--pixel-ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 0 rgba(20, 45, 61, 0.22);
+  cursor: pointer;
+}
+
+.scale-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.scale-button:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(20, 45, 61, 0.22);
+}
+
+.scale-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.is-liquid-glass .scale-button {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--pixel-ink) 20%, transparent);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.is-liquid-glass .scale-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.scale-range {
+  width: clamp(78px, 13vw, 128px);
   display: flex;
   align-items: center;
 }
 
-.runner-title {
-  gap: 9px;
-  font-size: 13px;
+.scale-range input {
+  width: 100%;
+  margin: 0;
+  accent-color: #1769aa;
+  cursor: ew-resize;
+}
+
+.scale-value {
+  width: 39px;
+  color: var(--pixel-ink);
+  font-size: 12px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
-.status-light {
-  width: 10px;
-  height: 10px;
-  background: #31a75a;
-  border: 2px solid var(--pixel-ink);
-  box-shadow: 2px 2px 0 rgba(20, 45, 61, 0.18);
+.reset-scale-button {
+  margin-left: 1px;
 }
 
-.runner-controls {
-  gap: 8px;
-  opacity: 0.75;
-}
-
-.control-divider {
-  width: 2px;
-  height: 14px;
-  background: currentColor;
-  opacity: 0.35;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .canvas-wrap {
@@ -619,7 +786,8 @@ canvas {
   }
 
   .runner-toolbar {
-    height: 34px;
+    min-height: 38px;
+    padding: 0 8px;
     border-bottom-width: 2px;
   }
 
@@ -631,8 +799,17 @@ canvas {
         0 14px 38px rgba(15, 23, 42, 0.18);
   }
 
-  .runner-title {
-    font-size: 12px;
+  .runner-scale-control {
+    gap: 5px;
+  }
+
+  .scale-button {
+    width: 25px;
+    height: 25px;
+  }
+
+  .scale-range {
+    width: clamp(64px, 18vw, 96px);
   }
 
   .game-over-modal {
