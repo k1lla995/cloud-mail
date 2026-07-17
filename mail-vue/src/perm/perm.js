@@ -59,6 +59,16 @@ const routers = {
             }
         }
     ],
+    'email:delete': [{
+        path: '/recycle',
+        name: 'recycle',
+        component: () => import('@/views/recycle/index.vue'),
+        meta: {
+            title: 'recycleBin',
+            name: 'recycle',
+            menu: true
+        }
+    }],
     'user:query': [{
         path: '/all-users',
         name: 'user',

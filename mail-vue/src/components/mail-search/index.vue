@@ -35,6 +35,7 @@
           <label><span>{{ t('minSize') }}</span><div class="unit-input"><input v-model="filters.minSize" min="0" step="0.1" type="number" /><b>MB</b></div></label>
           <label><span>{{ t('maxSize') }}</span><div class="unit-input"><input v-model="filters.maxSize" min="0" step="0.1" type="number" /><b>MB</b></div></label>
           <label class="attachment-filter"><span>{{ t('attachments') }}</span><select v-model="filters.hasAttachment"><option value="">{{ t('any') }}</option><option value="true">{{ t('hasAttachments') }}</option><option value="false">{{ t('noAttachments') }}</option></select></label>
+          <label class="include-recycle"><span>{{ t('includeRecycle') }}</span><span class="checkbox-line"><input v-model="filters.includeRecycle" type="checkbox" />{{ t('includeRecycle') }}</span><small>{{ t('includeRecycleHint') }}</small></label>
         </div>
 
         <div v-if="hasSearch" class="search-results" :class="{ loading }">
@@ -78,9 +79,9 @@ const results = ref([])
 let debounceTimer
 let requestId = 0
 
-const filters = reactive({ query: '', recipient: '', sender: '', attachmentFormat: '', words: '', after: '', before: '', minSize: '', maxSize: '', hasAttachment: '' })
-const hasSearch = computed(() => Object.values(filters).some(value => value !== ''))
-const activeFilterCount = computed(() => Object.entries(filters).filter(([key, value]) => key !== 'query' && value !== '').length)
+const filters = reactive({ query: '', recipient: '', sender: '', attachmentFormat: '', words: '', after: '', before: '', minSize: '', maxSize: '', hasAttachment: '', includeRecycle: false })
+const hasSearch = computed(() => Object.entries(filters).some(([key, value]) => key === 'includeRecycle' ? value : value !== ''))
+const activeFilterCount = computed(() => Object.entries(filters).filter(([key, value]) => key !== 'query' && (key === 'includeRecycle' ? value : value !== '')).length)
 const attachmentFormatDisabled = computed(() => filters.hasAttachment === 'false')
 
 watch(filters, () => {
@@ -145,7 +146,7 @@ function openFirstResult() {
 
 function openMessage(message) {
   emailStore.contentData.email = message
-  emailStore.contentData.delType = 'logic'
+  emailStore.contentData.delType = message.isDel ? 'recycle' : 'logic'
   emailStore.contentData.showStar = true
   emailStore.contentData.showReply = true
   emailStore.contentData.showUnread = true
@@ -224,12 +225,13 @@ function matchedAttachmentNames(message) {
 .filter-grid input, .filter-grid select { width: 100%; min-width: 0; height: 31px; padding: 0 8px; color: var(--el-text-color-primary); border: 1px solid color-mix(in srgb, var(--el-border-color) 80%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--light-ill) 82%, transparent); }
 .filter-grid input:focus, .filter-grid select:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--el-color-primary) 17%, transparent); }
 .filter-grid label.disabled { color: var(--secondary-text-color); }.filter-grid input:disabled { color: var(--secondary-text-color); border-color: color-mix(in srgb, var(--el-border-color) 62%, transparent); background: color-mix(in srgb, var(--el-fill-color-light) 72%, transparent); cursor: not-allowed; }
+.include-recycle { grid-column: span 3; }.include-recycle .checkbox-line { display: inline-flex; align-items: center; gap: 6px; color: var(--el-text-color-primary); font-size: 12px; font-weight: 500; }.include-recycle .checkbox-line input { width: 15px; height: 15px; padding: 0; accent-color: var(--el-color-primary); }.include-recycle small { color: var(--secondary-text-color); font-weight: 400; }
 .unit-input { position: relative; }.unit-input input { padding-right: 29px; }.unit-input b { position: absolute; right: 8px; top: 8px; color: var(--secondary-text-color); font-size: 10px; }
 .search-results { max-height: min(440px, calc(100vh - 180px)); overflow: auto; padding: 7px; }.results-heading { padding: 5px 7px 7px; display: flex; align-items: center; gap: 6px; color: var(--secondary-text-color); font-size: 11px; font-weight: 700; }.loading-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--el-color-primary); animation: pulse 1s ease infinite; }
 .search-result { width: 100%; min-height: 56px; padding: 7px; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 9px; text-align: left; color: inherit; border-radius: 6px; cursor: pointer; transition: background .18s ease; }.search-result:hover, .search-result:focus-visible { background: color-mix(in srgb, var(--el-color-primary) 10%, transparent); }.result-avatar { width: 32px; height: 32px; display: grid; place-items: center; color: var(--el-color-primary-dark-2); background: var(--el-color-primary-light-9); border: 1px solid color-mix(in srgb, var(--el-color-primary) 20%, transparent); border-radius: 50%; font-size: 13px; font-weight: 700; }.result-copy { min-width: 0; display: grid; gap: 1px; }.result-copy strong, .result-copy span, .result-copy small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }.result-copy strong { font-size: 13px; }.result-copy span { font-size: 12px; }.result-copy small { color: var(--secondary-text-color); font-size: 10px; }.result-copy mark { padding: 0 1px; color: inherit; background: color-mix(in srgb, var(--el-color-primary) 28%, transparent); border-radius: 2px; }.matched-attachments { display: inline-flex; align-items: center; gap: 3px; color: var(--el-color-primary-dark-2) !important; }.match-context { color: var(--secondary-text-color); }.attachment-icon { color: var(--secondary-text-color); }
 .no-results, .search-hint { min-height: 70px; padding: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--secondary-text-color); font-size: 12px; }.search-hint { justify-content: flex-start; }
 .search-panel-enter-active, .search-panel-leave-active { transition: opacity .16s ease, transform .16s ease; }.search-panel-enter-from, .search-panel-leave-to { opacity: 0; transform: translateY(-5px); }
 @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
-@media (max-width: 767px) { .mail-search-shell { max-width: none; }.filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.mail-search-popover { position: fixed; top: 51px; left: 8px; right: 8px; }.filter-grid .attachment-filter { grid-column: span 2; } }
+@media (max-width: 767px) { .mail-search-shell { max-width: none; }.filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.mail-search-popover { position: fixed; top: 51px; left: 8px; right: 8px; }.filter-grid .attachment-filter, .filter-grid .include-recycle { grid-column: span 2; } }
 @media (prefers-reduced-motion: reduce) { .mail-search-bar, .clear-button, .filter-button, .search-result, .search-panel-enter-active, .search-panel-leave-active { transition: none; }.loading-dot { animation: none; } }
 </style>

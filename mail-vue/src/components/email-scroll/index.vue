@@ -12,12 +12,18 @@
 
         <slot name="first"></slot>
         <Icon class="icon reload" icon="ion:reload" width="18" height="18" @click="refresh"/>
-        <Icon v-perm="'email:delete'" class="icon delete" icon="uiw:delete" width="16" height="16"
-              v-if="getSelectedMailsIds().length > 0"
-              @click="handleDelete"/>
-        <Icon v-perm="'email:delete'" class="icon delete" icon="fluent:mail-read-20-regular" width="21" height="21"
-              v-if="getSelectedMailsIds().length > 0 && showUnread"
-              @click="handleRead"/>
+        <template v-if="recycleMode">
+          <Icon v-perm="'email:delete'" class="icon restore" icon="solar:restart-linear" width="20" height="20"
+                v-if="getSelectedMailsIds().length > 0" @click="restoreSelected"/>
+          <Icon v-perm="'email:delete'" class="icon delete" icon="material-symbols:delete-forever-outline-rounded" width="21" height="21"
+                v-if="getSelectedMailsIds().length > 0" @click="permanentlyDeleteSelected"/>
+        </template>
+        <template v-else>
+          <Icon v-perm="'email:delete'" class="icon delete" icon="uiw:delete" width="16" height="16"
+                v-if="getSelectedMailsIds().length > 0" @click="handleDelete"/>
+          <Icon v-perm="'email:delete'" class="icon delete" icon="fluent:mail-read-20-regular" width="21" height="21"
+                v-if="getSelectedMailsIds().length > 0 && showUnread" @click="handleRead"/>
+        </template>
       </div>
 
       <div class="header-right">
@@ -138,7 +144,7 @@
                        :showUserInfo="showUserInfo"
                        :type="type"/>
       <div class="empty" v-if="noLoading && emailList.length === 0 && !loading">
-        <el-empty :image-size="isMobile ? 120 : null" :description="$t('noMessagesFound')"/>
+        <el-empty :image-size="isMobile ? 120 : null" :description="emptyDescription || $t('noMessagesFound')"/>
       </div>
     </div>
     <el-dropdown
@@ -219,7 +225,15 @@
               </div>
             </template>
           </el-dropdown-item>
-          <el-dropdown-item @click="rightDelete(rightClickEmail.emailId)">
+          <template v-if="recycleMode">
+            <el-dropdown-item @click="restoreSelected([rightClickEmail.emailId])">
+              <template #default><div class="right-dropdown-item"><Icon icon="solar:restart-linear" width="20" height="20" /><span>{{t('restore')}}</span></div></template>
+            </el-dropdown-item>
+            <el-dropdown-item @click="permanentlyDeleteSelected([rightClickEmail.emailId])">
+              <template #default><div class="right-dropdown-item"><Icon icon="material-symbols:delete-forever-outline-rounded" width="20" height="20" /><span>{{t('permanentDelete')}}</span></div></template>
+            </el-dropdown-item>
+          </template>
+          <el-dropdown-item v-else @click="rightDelete(rightClickEmail.emailId)">
             <template #default>
               <div class="right-dropdown-item">
                 <Icon icon="uiw:delete" width="16" height="20" style="margin-left: 1px;margin-right: 3px" />
@@ -294,7 +308,17 @@ const props = defineProps({
   showUnread: {
     type: Boolean,
     default: false
-  }
+  },
+  recycleMode: {
+    type: Boolean,
+    default: false
+  },
+  emptyDescription: {
+    type: String,
+    default: ''
+  },
+  emailRestore: Function,
+  emailPermanentDelete: Function
 })
 
 const emit = defineEmits(['jump', 'refresh-before', 'delete-draft', 'right-search'])
@@ -634,32 +658,49 @@ function localRead(emailIds) {
   })
 }
 
-function rightDelete(emailId) {
-
-  if (props.type === 'all-email') {
-    ElMessageBox.confirm(t('delOneEmailConfirm'), {
-      confirmButtonText: t('confirm'),
-      cancelButtonText: t('cancel'),
-      type: 'warning'
-    }).then(() => {
-      props.emailDelete([emailId]).then(() => {
-        ElMessage({
-          message: t('delSuccessMsg'),
-          type: 'success',
-          plain: true
-        })
-        emailStore.deleteIds = [emailId];
-      })
-    })
-    return;
+async function restoreSelected(ids = getSelectedMailsIds()) {
+  try {
+    await props.emailRestore(ids)
+    deleteEmail(ids)
+    ElMessage({ message: t('recycleRestoreSuccess'), type: 'success', plain: true })
+  } catch {
+    ElMessage({ message: t('recycleRestoreFailed'), type: 'error', plain: true })
   }
-  props.emailDelete([emailId]).then(() => {
-    ElMessage({
-      message: t('delSuccessMsg'),
-      type: 'success',
-      plain: true
+}
+
+function permanentlyDeleteSelected(ids = getSelectedMailsIds()) {
+  const isBatch = ids.length > 1
+  ElMessageBox.confirm(isBatch ? t('permanentDeleteBatchConfirm') : t('permanentDeleteOneConfirm'), t('permanentDeleteTitle'), {
+    confirmButtonText: t('permanentDelete'),
+    confirmButtonClass: 'el-button--danger',
+    cancelButtonText: t('cancel'),
+    type: 'error'
+  }).then(async () => {
+    try {
+      await props.emailPermanentDelete(ids)
+      deleteEmail(ids)
+      ElMessage({ message: t('permanentDeleteSuccess'), type: 'success', plain: true })
+    } catch {
+      ElMessage({ message: t('permanentDeleteFailed'), type: 'error', plain: true })
+    }
+  })
+}
+
+function rightDelete(emailId) {
+  const isPermanent = props.type === 'all-email'
+  ElMessageBox.confirm(isPermanent ? t('delOneEmailConfirm') : t('moveToRecycleConfirm'), {
+    confirmButtonText: t('confirm'),
+    cancelButtonText: t('cancel'),
+    type: 'warning'
+  }).then(() => {
+    props.emailDelete([emailId]).then(() => {
+      ElMessage({
+        message: isPermanent ? t('delSuccessMsg') : t('movedToRecycle'),
+        type: 'success',
+        plain: true
+      })
+      emailStore.deleteIds = [emailId];
     })
-    emailStore.deleteIds = [emailId];
   })
 }
 
@@ -686,7 +727,8 @@ async function copyCode(code) {
 }
 
 function handleDelete() {
-  ElMessageBox.confirm(t('delEmailsConfirm'), {
+  const isPermanent = props.type === 'all-email'
+  ElMessageBox.confirm(props.type === 'draft' || isPermanent ? t('delEmailsConfirm') : t('moveToRecycleConfirm'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
@@ -701,7 +743,7 @@ function handleDelete() {
     const emailIds = getSelectedMailsIds();
     props.emailDelete(emailIds).then(() => {
       ElMessage({
-        message: t('delSuccessMsg'),
+        message: isPermanent ? t('delSuccessMsg') : t('movedToRecycle'),
         type: 'success',
         plain: true
       })

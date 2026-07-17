@@ -389,7 +389,27 @@ const en = {
     contactEmailRequired: 'Enter a contact email',
     selectContactsForDeletion: 'Select contacts to delete',
     deleteContactsConfirm: 'Delete the selected contacts?',
-    contactAdded: 'Contact added'
+    contactAdded: 'Contact added',
+    recycleBin: 'Trash',
+    searchRecycle: 'Search Trash',
+    moveToRecycleConfirm: 'Move the selected email to Trash?',
+    movedToRecycle: 'Moved to Trash',
+    recycleRestoreSuccess: 'Email restored',
+    recycleRestoreFailed: 'Could not restore email',
+    permanentDelete: 'Delete permanently',
+    permanentDeleteTitle: 'Permanent deletion',
+    permanentDeleteOneConfirm: 'This email and its attachments will be permanently deleted and cannot be recovered.',
+    permanentDeleteBatchConfirm: 'The selected emails and attachments will be permanently deleted. This action cannot be undone.',
+    permanentDeleteSuccess: 'Permanently deleted',
+    permanentDeleteFailed: 'Could not permanently delete email',
+    emptyRecycle: 'Empty Trash',
+    emptyRecycleWarning: 'Permanently delete every email and attachment in Trash? This irreversible action cannot be undone.',
+    recycleCleared: 'Trash emptied ({count})',
+    recycleEmpty: 'Trash is empty. Deleted emails are kept here for 30 days.',
+    recycleExpiryNotice: '{count} email(s) will be permanently deleted within 7 days.',
+    recycleAutoCleaned: '30-day cleanup completed: {count} email(s) permanently deleted.',
+    includeRecycle: 'Include Trash',
+    includeRecycleHint: 'Searches deleted emails too. They can still be restored from Trash.'
 }
 
 export default en

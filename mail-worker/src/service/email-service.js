@@ -138,20 +138,113 @@ const emailService = {
 	async delete(c, params, userId) {
 		const { emailIds } = params;
 		const emailIdList = emailIds.split(',').map(Number);
-		await orm(c).update(email).set({ isDel: isDel.DELETE }).where(
+		await orm(c).update(email).set({
+			isDel: isDel.DELETE,
+			deleteTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+		}).where(
 			and(
 				eq(email.userId, userId),
 				inArray(email.emailId, emailIdList)))
 			.run();
 	},
 
+	async recycleList(c, params, userId) {
+		let { emailId, size, timeSort, query: searchQuery } = params;
+		size = Math.min(Math.max(Number(size) || 50, 1), 50);
+		emailId = Number(emailId) || (Number(timeSort) ? 0 : 9999999999);
+		timeSort = Number(timeSort);
+
+		const autoCleaned = await this.clearExpired(c, userId);
+		const baseFilters = [
+			eq(email.userId, userId),
+			eq(email.isDel, isDel.DELETE),
+			ne(email.status, emailConst.status.SAVING)
+		];
+		if (searchQuery?.trim()) {
+			const value = '%' + searchQuery.trim() + '%';
+			baseFilters.push(or(
+				sql`${email.sendEmail} COLLATE NOCASE LIKE ${value}`,
+				sql`${email.name} COLLATE NOCASE LIKE ${value}`,
+				sql`${email.toEmail} COLLATE NOCASE LIKE ${value}`,
+				sql`${email.subject} COLLATE NOCASE LIKE ${value}`,
+				sql`${email.text} COLLATE NOCASE LIKE ${value}`,
+				sql`${email.content} COLLATE NOCASE LIKE ${value}`
+			));
+		}
+		const filters = [...baseFilters, timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId)];
+		const query = orm(c).select({ ...email, starId: star.starId }).from(email)
+			.leftJoin(star, and(eq(star.emailId, email.emailId), eq(star.userId, userId)))
+			.where(and(...filters));
+		if (timeSort) query.orderBy(asc(email.emailId)); else query.orderBy(desc(email.emailId));
+
+		const expiresAt = dayjs().subtract(30, 'day').format('YYYY-MM-DD HH:mm:ss');
+		const warningAt = dayjs().subtract(23, 'day').format('YYYY-MM-DD HH:mm:ss');
+		const [list, totalRow, expiringRow] = await Promise.all([
+			query.limit(size).all(),
+			orm(c).select({ total: count() }).from(email).where(and(...baseFilters)).get(),
+			orm(c).select({ total: count() }).from(email).where(and(
+				eq(email.userId, userId), eq(email.isDel, isDel.DELETE),
+				gte(email.deleteTime, expiresAt), lte(email.deleteTime, warningAt)
+			)).get()
+		]);
+		list.forEach(item => item.isStar = item.starId != null ? 1 : 0);
+		await this.emailAddAtt(c, list);
+		return { list, total: totalRow.total, latestEmail: { emailId: 0, userId }, expiringCount: expiringRow.total, autoCleaned };
+	},
+
+	async restore(c, params, userId) {
+		const emailIds = String(params.emailIds || '').split(',').map(Number).filter(Number.isFinite);
+		if (!emailIds.length) return 0;
+		const result = await orm(c).update(email).set({ isDel: isDel.NORMAL, deleteTime: null }).where(and(
+			eq(email.userId, userId), eq(email.isDel, isDel.DELETE), inArray(email.emailId, emailIds)
+		)).run();
+		return result.meta?.changes || 0;
+	},
+
+	async permanentDelete(c, params, userId) {
+		const requestedIds = String(params.emailIds || '').split(',').map(Number).filter(Number.isFinite);
+		if (!requestedIds.length) return 0;
+		const rows = await orm(c).select({ emailId: email.emailId }).from(email).where(and(
+			eq(email.userId, userId), eq(email.isDel, isDel.DELETE), inArray(email.emailId, requestedIds)
+		)).all();
+		const emailIds = rows.map(row => row.emailId);
+		await this.removeEmailData(c, emailIds);
+		return emailIds.length;
+	},
+
+	async clearRecycle(c, userId) {
+		const rows = await orm(c).select({ emailId: email.emailId }).from(email).where(and(
+			eq(email.userId, userId), eq(email.isDel, isDel.DELETE)
+		)).all();
+		const emailIds = rows.map(row => row.emailId);
+		await this.removeEmailData(c, emailIds);
+		return emailIds.length;
+	},
+
+	async clearExpired(c, userId) {
+		const expiresAt = dayjs().subtract(30, 'day').format('YYYY-MM-DD HH:mm:ss');
+		const conditions = [eq(email.isDel, isDel.DELETE), lte(email.deleteTime, expiresAt)];
+		if (userId != null) conditions.push(eq(email.userId, userId));
+		const rows = await orm(c).select({ emailId: email.emailId }).from(email).where(and(...conditions)).all();
+		const emailIds = rows.map(row => row.emailId);
+		await this.removeEmailData(c, emailIds);
+		return emailIds.length;
+	},
+
+	async removeEmailData(c, emailIds) {
+		if (!emailIds.length) return;
+		await attService.removeByEmailIds(c, emailIds);
+		await starService.removeByEmailIds(c, emailIds);
+		await orm(c).delete(email).where(inArray(email.emailId, emailIds)).run();
+	},
+
 	async search(c, params, userId) {
-		let { query, recipient, sender, attachmentFormat, words, after, before, minSize, maxSize, hasAttachment, limit } = params;
+		let { query, recipient, sender, attachmentFormat, words, after, before, minSize, maxSize, hasAttachment, includeRecycle, limit } = params;
 		limit = Math.min(Math.max(Number(limit) || 50, 1), 50);
 
 		const conditions = [
 			eq(email.userId, userId),
-			eq(email.isDel, isDel.NORMAL),
+			includeRecycle === 'true' || includeRecycle === true ? or(eq(email.isDel, isDel.NORMAL), eq(email.isDel, isDel.DELETE)) : eq(email.isDel, isDel.NORMAL),
 			ne(email.status, emailConst.status.SAVING)
 		];
 		const contains = (column, value) => sql`${column} COLLATE NOCASE LIKE ${'%' + value.trim() + '%'}`;
@@ -985,9 +1078,10 @@ const emailService = {
 		await orm(c).update(email).set({ isDel: isDel.NORMAL }).where(eq(email.userId, userId)).run();
 	},
 
-	async completeReceive(c, status, emailId) {
+	async completeReceive(c, status, emailId, moveToRecycle = false) {
 		return await orm(c).update(email).set({
-			isDel: isDel.NORMAL,
+			isDel: moveToRecycle ? isDel.DELETE : isDel.NORMAL,
+			deleteTime: moveToRecycle ? sql`CURRENT_TIMESTAMP` : null,
 			status: status
 		}).where(eq(email.emailId, emailId)).returning().get();
 	},

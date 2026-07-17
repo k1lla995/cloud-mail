@@ -26,6 +26,11 @@
           <Icon icon="ep:document" width="19" height="19" />
           <span class="menu-name" style="margin-left: 22px">{{$t('drafts')}}</span>
         </el-menu-item>
+        <el-menu-item @click="router.push({name: 'recycle'})" index="recycle" v-perm="'email:delete'"
+                      :class="route.meta.name === 'recycle' ? 'choose-item' : ''">
+          <Icon icon="material-symbols:delete-outline-rounded" width="20" height="20" />
+          <span class="menu-name" style="margin-left: 21px">{{$t('recycleBin')}}</span>
+        </el-menu-item>
         <el-menu-item @click="router.push({name: 'star'})" index="star"
                       :class="route.meta.name === 'star' ? 'choose-item' : ''">
           <Icon icon="solar:star-line-duotone" width="20" height="20" />

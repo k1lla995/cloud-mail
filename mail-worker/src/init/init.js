@@ -43,7 +43,20 @@ const dbInit = {
 		await this.v3_4DB(c);
 		await this.v3_5DB(c);
 		await this.v3_6DB(c);
+		await this.v3_7DB(c);
 		await settingService.refresh(c);
+	},
+
+	async v3_7DB(c) {
+		try {
+			await c.env.db.prepare(`ALTER TABLE email ADD COLUMN delete_time DATETIME;`).run();
+		} catch (e) {
+			console.warn(`Skip recycle-bin migration: ${e.message}`);
+		}
+		await c.env.db.batch([
+			c.env.db.prepare(`UPDATE email SET delete_time = CURRENT_TIMESTAMP WHERE is_del = 1 AND delete_time IS NULL;`),
+			c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_user_deleted_time ON email(user_id, is_del, delete_time);`)
+		]);
 	},
 
 	async v3_6DB(c) {
@@ -608,6 +621,7 @@ const dbInit = {
 			content TEXT,
 			text TEXT,
 			create_time DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+			delete_time DATETIME,
 			is_del INTEGER DEFAULT 0 NOT NULL
 		  )
 		`).run();

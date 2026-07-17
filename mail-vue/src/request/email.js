@@ -12,6 +12,22 @@ export function emailDelete(emailIds) {
     return http.delete('/email/delete?emailIds=' + emailIds)
 }
 
+export function recycleList(emailId, size, timeSort = 0, query = '') {
+    return http.get('/email/recycle', { params: { emailId, size, timeSort, query } })
+}
+
+export function emailRestore(emailIds) {
+    return http.put('/email/restore', { emailIds: emailIds.join(',') })
+}
+
+export function emailPermanentDelete(emailIds) {
+    return http.delete('/email/permanent', { params: { emailIds: emailIds.join(',') } })
+}
+
+export function recycleClear() {
+    return http.delete('/email/recycle')
+}
+
 export function emailLatest(emailId, accountId, allReceive) {
     return http.get('/email/latest', {params: {emailId, accountId, allReceive}, noMsg: true, timeout: 35 * 1000})
 }

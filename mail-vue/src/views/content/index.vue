@@ -78,7 +78,7 @@ import ShadowHtml from '@/components/shadow-html/index.vue'
 import {reactive, ref, watch, onMounted, onUnmounted} from "vue";
 import {useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
-import {emailDelete, emailRead} from "@/request/email.js";
+import {emailDelete, emailPermanentDelete, emailRead} from "@/request/email.js";
 import {Icon} from "@iconify/vue";
 import {useEmailStore} from "@/store/email.js";
 import {useAccountStore} from "@/store/account.js";
@@ -99,6 +99,7 @@ const accountStore = useAccountStore();
 const emailStore = useEmailStore();
 const router = useRouter()
 const email = emailStore.contentData.email
+const isRecycle = emailStore.contentData.delType === 'recycle'
 const showPreview = ref(false)
 const srcList = reactive([])
 
@@ -184,18 +185,23 @@ const handleBack = () => {
 }
 
 const handleDelete = () => {
-  ElMessageBox.confirm(t('delEmailConfirm'), {
-    confirmButtonText: t('confirm'),
+  ElMessageBox.confirm(isRecycle ? t('permanentDeleteOneConfirm') : t('moveToRecycleConfirm'), {
+    confirmButtonText: isRecycle ? t('permanentDelete') : t('confirm'),
     cancelButtonText: t('cancel'),
-    type: 'warning'
+    type: isRecycle ? 'error' : 'warning'
   }).then(() => {
     if (emailStore.contentData.delType === 'logic') {
       emailDelete(email.emailId).then(() => {
         ElMessage({
-          message: t('delSuccessMsg'),
+          message: t('movedToRecycle'),
           type: 'success',
           plain: true,
         })
+        emailStore.deleteIds = [email.emailId]
+      })
+    } else if (isRecycle) {
+      emailPermanentDelete([email.emailId]).then(() => {
+        ElMessage({ message: t('permanentDeleteSuccess'), type: 'success', plain: true })
         emailStore.deleteIds = [email.emailId]
       })
     } else  {

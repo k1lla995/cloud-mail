@@ -52,11 +52,7 @@ export async function email(message, env, ctx) {
 
 
 		const blockFlag = checkBlock(blackSubject, blackContent, blackFrom, email);
-
-		if (blockFlag) {
-			message.setReject('Message rejected');
-			return;
-		}
+		const spamFlag = checkSpam(email);
 
 		const account = await accountService.selectByEmailIncludeDel({ env: env }, message.to);
 
@@ -71,6 +67,7 @@ export async function email(message, env, ctx) {
 			 userRow = await userService.selectByIdIncludeDel({ env: env }, account.userId);
 		}
 
+		let recipientBlocked = false;
 		if (account && !adminUtils.isAdminUser(userRow, env.admin)) {
 
 			let { banEmail, availDomain } = await roleService.selectByUserId({ env: env }, account.userId);
@@ -81,8 +78,7 @@ export async function email(message, env, ctx) {
 			}
 
 			if(roleService.isBanEmail(banEmail, email.from.address)) {
-				message.setReject('The recipient is disabled from receiving emails.');
-				return;
+				recipientBlocked = true;
 			}
 
 		}
@@ -95,6 +91,7 @@ export async function email(message, env, ctx) {
 		const toName = email.to.find(item => item.address === message.to)?.name || '';
 		const code = await aiService.extractCode({ env }, email, { aiCode, aiCodeFilter });
 
+		const moveToRecycle = blockFlag || recipientBlocked || spamFlag;
 		const params = {
 			toEmail: message.to,
 			toName: toName,
@@ -113,6 +110,7 @@ export async function email(message, env, ctx) {
 			userId: account ? account.userId : 0,
 			accountId: account ? account.accountId : 0,
 			isDel: isDel.DELETE,
+			deleteTime: moveToRecycle ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null,
 			status: emailConst.status.SAVING
 		};
 
@@ -145,7 +143,11 @@ export async function email(message, env, ctx) {
 			console.error(e);
 		}
 
-		emailRow = await emailService.completeReceive({ env }, account ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId);
+		emailRow = await emailService.completeReceive({ env }, account ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId, moveToRecycle);
+
+		if (moveToRecycle) {
+			return;
+		}
 
 
 		if (ruleType === settingConst.ruleType.RULE) {
@@ -212,4 +214,25 @@ function checkBlock(blackSubjectStr, blackContentStr, blackFromStr, email) {
 
 	return false
 
+}
+
+function checkSpam(email) {
+	const spamFlag = getHeader(email.headers, 'x-spam-flag');
+	if (/^(?:yes|true|1)$/i.test(spamFlag.trim())) return true;
+
+	const spamStatus = getHeader(email.headers, 'x-spam-status');
+	if (/\b(?:yes|spam)\b/i.test(spamStatus)) return true;
+	const score = spamStatus.match(/score\s*=\s*(-?\d+(?:\.\d+)?)/i);
+	const required = spamStatus.match(/required\s*=\s*(-?\d+(?:\.\d+)?)/i);
+	return !!(score && required && Number(score[1]) >= Number(required[1]));
+}
+
+function getHeader(headers, name) {
+	if (!headers) return '';
+	if (typeof headers.get === 'function') return headers.get(name) || headers.get(name.toLowerCase()) || '';
+	if (Array.isArray(headers)) {
+		const item = headers.find(header => String(header?.key || header?.[0] || '').toLowerCase() === name);
+		return item?.value || item?.[1] || '';
+	}
+	return headers[name] || headers[name.toLowerCase()] || '';
 }

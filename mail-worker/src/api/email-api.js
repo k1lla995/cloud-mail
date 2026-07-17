@@ -14,6 +14,26 @@ app.get('/email/search', async (c) => {
 	return c.json(result.ok(list));
 });
 
+app.get('/email/recycle', async (c) => {
+	const data = await emailService.recycleList(c, c.req.query(), userContext.getUserId(c));
+	return c.json(result.ok(data));
+});
+
+app.put('/email/restore', async (c) => {
+	const count = await emailService.restore(c, await c.req.json(), userContext.getUserId(c));
+	return c.json(result.ok({ count }));
+});
+
+app.delete('/email/permanent', async (c) => {
+	const count = await emailService.permanentDelete(c, c.req.query(), userContext.getUserId(c));
+	return c.json(result.ok({ count }));
+});
+
+app.delete('/email/recycle', async (c) => {
+	const count = await emailService.clearRecycle(c, userContext.getUserId(c));
+	return c.json(result.ok({ count }));
+});
+
 app.get('/email/latest', async (c) => {
 	const list = await emailService.latest(c, c.req.query(), userContext.getUserId(c));
 	return c.json(result.ok(list));
