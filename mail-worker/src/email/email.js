@@ -12,6 +12,7 @@ import userService from '../service/user-service';
 import telegramService from '../service/telegram-service';
 import aiService from '../service/ai-service';
 import adminUtils from '../utils/admin-utils';
+import disposableDomainService from '../service/disposable-domain-service';
 
 export async function email(message, env, ctx) {
 
@@ -53,6 +54,7 @@ export async function email(message, env, ctx) {
 
 		const blockFlag = checkBlock(blackSubject, blackContent, blackFrom, email);
 		const spamFlag = checkSpam(email);
+		const disposableDomainFlag = disposableDomainService.isDisposable(email.from?.address);
 
 		const account = await accountService.selectByEmailIncludeDel({ env: env }, message.to);
 
@@ -91,7 +93,7 @@ export async function email(message, env, ctx) {
 		const toName = email.to.find(item => item.address === message.to)?.name || '';
 		const code = await aiService.extractCode({ env }, email, { aiCode, aiCodeFilter });
 
-		const moveToRecycle = blockFlag || recipientBlocked || spamFlag;
+		const moveToRecycle = blockFlag || recipientBlocked || spamFlag || disposableDomainFlag;
 		const params = {
 			toEmail: message.to,
 			toName: toName,
