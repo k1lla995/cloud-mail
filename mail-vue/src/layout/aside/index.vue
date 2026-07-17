@@ -18,7 +18,7 @@
         </el-menu-item>
         <el-menu-item @click="router.push({name: 'contact'})" index="contact"
                       :class="route.meta.name === 'contact' ? 'choose-item' : ''">
-          <Icon icon="material-symbols:person-add-outline" width="21" height="21" />
+          <Icon class="contact-menu-icon" icon="fluent:person-add-20-regular" width="21" height="21" />
           <span class="menu-name" style="margin-left: 20px">{{$t('contacts')}}</span>
         </el-menu-item>
         <el-menu-item @click="router.push({name: 'draft'})" index="draft" v-perm="'email:send'"
@@ -117,6 +117,10 @@ const route = useRoute();
 
 .menu-name {
   user-select: none;
+}
+
+.contact-menu-icon {
+  color: currentColor;
 }
 
 
