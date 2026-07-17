@@ -43,7 +43,7 @@
           </template>
           <template #suffix>
             <div style="display: flex;margin-right: 3px;">
-              <Icon icon="fa7-solid:user-plus" width="20" height="20" class="add-contact" @click.stop="openContacts" />
+              <Icon icon="fa7-solid:user-plus" width="20" height="20" class="add-contact" @pointerdown.stop="suppressRecentSuggestions" @click.stop="openContacts" />
             </div>
           </template>
         </el-input-tag>
@@ -141,6 +141,7 @@ const contacts = ref([])
 const contactsLoading = ref(false)
 const mySelect = ref()
 let selectStatus = false
+let skipRecentSuggestions = false
 const backReply = reactive({
   receiveEmail: [],
   subject: '',
@@ -222,6 +223,11 @@ function inputChange(value) {
 }
 
 async function loadRecentRecipients() {
+  if (skipRecentSuggestions) {
+    skipRecentSuggestions = false
+    return
+  }
+
   try {
     recentRecipients.value = await recentRecipientList({})
     updateRecipientSuggestions('')
@@ -230,6 +236,14 @@ async function loadRecentRecipients() {
     recentRecipients.value = []
     selectRecipientList.value = []
   }
+}
+
+function suppressRecentSuggestions() {
+  skipRecentSuggestions = true
+  selectRecipientList.value = []
+  setTimeout(() => {
+    skipRecentSuggestions = false
+  })
 }
 
 function updateRecipientSuggestions(value = '') {
