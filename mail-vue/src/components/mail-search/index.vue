@@ -232,6 +232,17 @@ function matchedAttachmentNames(message) {
 .no-results, .search-hint { min-height: 70px; padding: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--secondary-text-color); font-size: 12px; }.search-hint { justify-content: flex-start; }
 .search-panel-enter-active, .search-panel-leave-active { transition: opacity .16s ease, transform .16s ease; }.search-panel-enter-from, .search-panel-leave-to { opacity: 0; transform: translateY(-5px); }
 @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
-@media (max-width: 767px) { .mail-search-shell { max-width: none; }.filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.mail-search-popover { position: fixed; top: 51px; left: 8px; right: 8px; }.filter-grid .attachment-filter, .filter-grid .include-recycle { grid-column: span 2; } }
+@media (max-width: 767px) {
+  .mail-search-shell { max-width: none; }
+  .mail-search-popover {
+    position: absolute;
+    top: calc(100% + 7px);
+    max-height: calc(100dvh - 68px);
+    overflow-y: auto;
+  }
+  .search-results { max-height: none; }
+  .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .filter-grid .attachment-filter, .filter-grid .include-recycle { grid-column: span 2; }
+}
 @media (prefers-reduced-motion: reduce) { .mail-search-bar, .clear-button, .filter-button, .search-result, .search-panel-enter-active, .search-panel-leave-active { transition: none; }.loading-dot { animation: none; } }
 </style>
