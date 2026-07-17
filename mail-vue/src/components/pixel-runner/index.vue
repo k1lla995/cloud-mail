@@ -132,7 +132,9 @@ function updateAvailableSize() {
 
   maxGameWidth.value = Math.max(1, Math.min(MAX_GAME_WIDTH, Math.round(availableWidth)))
   minGameWidth.value = Math.min(MIN_GAME_WIDTH, maxGameWidth.value)
-  gameWidth.value = normalizeGameWidth(gameWidth.value)
+  gameWidth.value = window.matchMedia('(max-width: 767px), (max-height: 540px) and (pointer: coarse)').matches
+      ? maxGameWidth.value
+      : normalizeGameWidth(gameWidth.value)
 }
 
 function pauseGame() {
@@ -547,8 +549,8 @@ function restartGame() {
 }
 
 onMounted(() => {
-  updateAvailableSize()
   gameWidth.value = normalizeGameWidth(restoreGameWidth())
+  updateAvailableSize()
   if ('ResizeObserver' in window) {
     sizeResizeObserver = new ResizeObserver(updateAvailableSize)
     sizeResizeObserver.observe(runnerRef.value.parentElement)
@@ -592,6 +594,7 @@ onBeforeUnmount(() => {
   background: #f8e6ad;
   box-shadow: 8px 8px 0 rgba(20, 45, 61, 0.22);
   font-family: "Courier New", monospace;
+  touch-action: manipulation;
 }
 
 .pixel-runner.is-liquid-glass {
@@ -811,6 +814,7 @@ canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .game-paused-hint {
@@ -981,6 +985,18 @@ canvas {
 
   .game-over-modal strong {
     font-size: 22px;
+  }
+
+}
+
+@media (max-width: 767px), (max-height: 540px) and (pointer: coarse) {
+  .resize-handle {
+    display: none;
+  }
+
+  .game-over-modal button {
+    min-height: 44px;
+    padding: 0 18px;
   }
 }
 </style>

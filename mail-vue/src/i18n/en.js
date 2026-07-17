@@ -130,7 +130,7 @@ const en = {
     regTitle: 'Sign up for an account to use email',
     runnerCanvasLabel: 'Colorful pixel art endless runner game',
     runnerScore: 'Score',
-    runnerGameOver: 'Delivery interrupted',
+    runnerGameOver: 'Final score',
     runnerRestart: 'Restart',
     runnerResizeHandle: 'Drag the border to resize the game',
     runnerPaused: 'Game paused',
@@ -351,7 +351,22 @@ const en = {
     searchUser: 'Search by user',
     searchEmail: 'Search by Email',
     searchSender: 'Search by Sender',
-    userEmail: 'Email Address'
+    userEmail: 'Email Address',
+    advancedMailSearch: 'Search mail',
+    advancedFilters: 'Advanced filters',
+    searchRecipient: 'Recipient email or name',
+    searchSubject: 'Email subject',
+    containsWords: 'Contains words',
+    searchWords: 'Words in message body',
+    afterDate: 'After date',
+    beforeDate: 'Before date',
+    minSize: 'Minimum size',
+    maxSize: 'Maximum size',
+    any: 'Any',
+    hasAttachments: 'Has attachments',
+    noAttachments: 'No attachments',
+    matchingMessages: 'Best matches',
+    searchHint: 'Type a keyword or open filters to search'
 }
 
 export default en

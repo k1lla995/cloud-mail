@@ -518,12 +518,12 @@ function submitRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  @media (max-width: 767px) {
+  @media (max-width: 767px), (max-height: 540px) and (pointer: coarse) {
     position: relative;
     width: 100%;
-    min-height: calc(100vh - 170px);
+    min-height: 0;
     height: auto;
-    padding: 16px 0 24px;
+    padding: 16px 0 calc(24px + env(safe-area-inset-bottom));
     align-items: flex-start;
   }
 }
@@ -547,11 +547,11 @@ function submitRegister() {
     padding: 18px;
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 767px), (max-height: 540px) and (pointer: coarse) {
     position: relative;
     inset: auto;
     width: 100%;
-    padding: 14px 14px 0;
+    padding: calc(14px + env(safe-area-inset-top)) 14px 0;
     align-items: flex-start;
   }
 }
@@ -572,7 +572,7 @@ function submitRegister() {
     width: 384px;
     margin-left: 18px;
   }
-  @media (max-width: 767px) {
+  @media (max-width: 767px), (max-height: 540px) and (pointer: coarse) {
     border: 1px solid var(--login-border);
     padding: 20px 18px;
     border-radius: 6px;
@@ -580,6 +580,20 @@ function submitRegister() {
     width: calc(100% - 36px);
     margin-right: 18px;
     margin-left: 18px;
+
+    .btn {
+      height: 44px;
+    }
+
+    .el-input {
+      height: 44px;
+      margin-bottom: 14px;
+
+      :deep(.el-input__inner) {
+        height: 42px;
+        font-size: 16px;
+      }
+    }
   }
 
   .btn {
@@ -654,6 +668,13 @@ function submitRegister() {
   border: 1px solid var(--el-border-color-light);
   box-shadow: var(--el-box-shadow-light);
   cursor: pointer;
+
+  @media (max-width: 767px), (max-height: 540px) and (pointer: coarse) {
+    width: 44px;
+    height: 44px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
 }
 
 :deep(.el-input-group__append) {
@@ -705,11 +726,12 @@ function submitRegister() {
   grid-template-columns: 1fr;
   position: relative;
 
-  @media (max-width: 767px) {
+  @media (max-width: 767px), (max-height: 540px) and (pointer: coarse) {
     display: block;
-    min-height: 100%;
+    min-height: 100dvh;
     height: auto;
     overflow-y: auto;
+    overscroll-behavior-y: contain;
   }
 }
 

@@ -145,6 +145,54 @@ const emailService = {
 			.run();
 	},
 
+	async search(c, params, userId) {
+		let { query, recipient, sender, subject, words, after, before, minSize, maxSize, hasAttachment, limit } = params;
+		limit = Math.min(Math.max(Number(limit) || 8, 1), 20);
+
+		const conditions = [
+			eq(email.userId, userId),
+			eq(email.isDel, isDel.NORMAL),
+			ne(email.status, emailConst.status.SAVING)
+		];
+		const contains = (column, value) => sql`${column} COLLATE NOCASE LIKE ${'%' + value.trim() + '%'}`;
+
+		if (query?.trim()) {
+			conditions.push(or(
+				contains(email.sendEmail, query), contains(email.name, query), contains(email.toEmail, query),
+				contains(email.subject, query), contains(email.text, query), contains(email.content, query)
+			));
+		}
+		if (recipient?.trim()) conditions.push(contains(email.toEmail, recipient));
+		if (sender?.trim()) conditions.push(or(contains(email.sendEmail, sender), contains(email.name, sender)));
+		if (subject?.trim()) conditions.push(contains(email.subject, subject));
+		if (words?.trim()) conditions.push(or(contains(email.subject, words), contains(email.text, words), contains(email.content, words)));
+		if (after) conditions.push(gte(email.createTime, `${after} 00:00:00`));
+		if (before) conditions.push(lte(email.createTime, `${before} 23:59:59`));
+
+		const minBytes = minSize === '' || minSize == null ? null : Number(minSize) * 1024 * 1024;
+		const maxBytes = maxSize === '' || maxSize == null ? null : Number(maxSize) * 1024 * 1024;
+		const estimatedMessageSize = sql`(
+			COALESCE(LENGTH(${email.text}), 0) + COALESCE(LENGTH(${email.content}), 0) +
+			COALESCE((SELECT SUM(a.size) FROM attachments a WHERE a.email_id = ${email.emailId}), 0)
+		)`;
+		if (hasAttachment === 'true') conditions.push(sql`EXISTS (SELECT 1 FROM attachments a WHERE a.email_id = ${email.emailId})`);
+		if (hasAttachment === 'false') conditions.push(sql`NOT EXISTS (SELECT 1 FROM attachments a WHERE a.email_id = ${email.emailId})`);
+		if (minBytes != null && Number.isFinite(minBytes) && minBytes >= 0) conditions.push(sql`${estimatedMessageSize} >= ${minBytes}`);
+		if (maxBytes != null && Number.isFinite(maxBytes) && maxBytes >= 0) conditions.push(sql`${estimatedMessageSize} <= ${maxBytes}`);
+
+		const list = await orm(c).select({ ...email, starId: star.starId })
+			.from(email)
+			.leftJoin(star, and(eq(star.emailId, email.emailId), eq(star.userId, userId)))
+			.where(and(...conditions))
+			.orderBy(desc(email.emailId))
+			.limit(limit)
+			.all();
+
+		list.forEach(item => item.isStar = item.starId != null ? 1 : 0);
+		await this.emailAddAtt(c, list);
+		return list;
+	},
+
 	receive(c, params, cidAttList, r2domain) {
 		params.content = this.imgReplace(params.content, cidAttList, r2domain)
 		return orm(c).insert(email).values({ ...params }).returning().get();

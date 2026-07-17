@@ -130,7 +130,7 @@ const zh = {
     regTitle: '输入账号密码以开始注册邮箱系统',
     runnerCanvasLabel: '彩色像素风无尽跑酷游戏',
     runnerScore: '得分',
-    runnerGameOver: '投递中断',
+    runnerGameOver: '最终得分',
     runnerRestart: '重新开始',
     runnerResizeHandle: '拖动边框调整游戏大小',
     runnerPaused: '游戏已暂停',
@@ -351,6 +351,21 @@ const zh = {
     searchUser: '搜索用户',
     searchEmail: '搜索邮箱',
     searchSender: '搜索发件人',
-    userEmail: '用户邮箱'
+    userEmail: '用户邮箱',
+    advancedMailSearch: '\u641c\u7d22\u90ae\u4ef6',
+    advancedFilters: '\u9ad8\u7ea7\u7b5b\u9009',
+    searchRecipient: '\u6536\u4ef6\u4eba\u90ae\u7bb1\u6216\u59d3\u540d',
+    searchSubject: '\u90ae\u4ef6\u4e3b\u9898',
+    containsWords: '\u5305\u542b\u7684\u5b57\u8bcd',
+    searchWords: '\u90ae\u4ef6\u6b63\u6587\u4e2d\u7684\u5b57\u8bcd',
+    afterDate: '\u5f00\u59cb\u65e5\u671f',
+    beforeDate: '\u7ed3\u675f\u65e5\u671f',
+    minSize: '\u6700\u5c0f\u5927\u5c0f',
+    maxSize: '\u6700\u5927\u5927\u5c0f',
+    any: '\u4e0d\u9650',
+    hasAttachments: '\u6709\u9644\u4ef6',
+    noAttachments: '\u65e0\u9644\u4ef6',
+    matchingMessages: '\u6700\u5339\u914d\u7684\u90ae\u4ef6',
+    searchHint: '\u8f93\u5165\u5173\u952e\u8bcd\uff0c\u6216\u6253\u5f00\u7b5b\u9009\u6761\u4ef6\u5f00\u59cb\u67e5\u627e'
 }
 export default zh

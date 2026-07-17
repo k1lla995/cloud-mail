@@ -9,6 +9,7 @@
         <Icon icon="material-symbols:edit-outline-sharp" width="22" height="22"/>
       </div>
     </div>
+    <mail-search class="mail-search" />
     <div class="toolbar">
       <div v-if="uiStore.dark" class="sun-icon icon-item" @click="openDark($event)">
         <Icon icon="mingcute:sun-fill"/>
@@ -85,6 +86,7 @@ import {useSettingStore} from "@/store/setting.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
 import {setExtend} from "@/utils/day.js"
+import MailSearch from '@/components/mail-search/index.vue'
 
 const {t} = useI18n();
 const route = useRoute();
@@ -361,11 +363,16 @@ function formatName(email) {
   display: grid;
   height: 100%;
   gap: 10px;
-  grid-template-columns: auto auto 1fr;
+  grid-template-columns: auto auto minmax(260px, 720px) 1fr;
 }
 
 .header.not-send {
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(260px, 720px) 1fr;
+}
+
+.mail-search {
+  min-width: 0;
+  align-self: center;
 }
 
 .writer-box {
@@ -475,5 +482,24 @@ function formatName(email) {
 
 .el-tooltip__trigger:first-child:focus-visible {
   outline: unset;
+}
+
+@media (max-width: 767px) {
+  .header,
+  .header.not-send {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .writer-box,
+  .breadcrumb-item,
+  .toolbar .notice,
+  .toolbar .setting-icon {
+    display: none;
+  }
+
+  .toolbar {
+    gap: 2px;
+  }
 }
 </style>
