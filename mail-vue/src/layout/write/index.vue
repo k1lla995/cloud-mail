@@ -15,7 +15,7 @@
         </div>
       </div>
       <div class="container">
-        <el-input-tag  @add-tag="addTagChange" tag-type="primary" @input="inputChange" size="default" v-model="form.receiveEmail" >
+        <el-input-tag @add-tag="addTagChange" @focus="loadRecentRecipients" tag-type="primary" @input="inputChange" size="default" v-model="form.receiveEmail" >
           <template #prefix>
             <div class="item-title" >{{ $t('recipient') }}</div>
             <el-select
@@ -30,11 +30,15 @@
             >
               <el-option
                   v-for="item in selectRecipientList"
-                  :key="item"
-                  :label="item"
-                  :value="item"
-                  style="color: #999896;"
-              />
+                  :key="item.email"
+                  :label="item.email"
+                  :value="item.email"
+              >
+                <div class="recipient-suggestion">
+                  <span>{{ item.email }}</span>
+                  <time>{{ formatDetailDate(item.lastSentTime) }}</time>
+                </div>
+              </el-option>
             </el-select>
           </template>
           <template #suffix>
@@ -69,24 +73,21 @@
         </div>
       </div>
     </div>
-    <el-dialog top="10vh" v-model="showContacts" @closed="clearSelectContact" :title="t('recentContacts')">
-      <el-table ref="contactsTabRef" row-key="email" :data="contacts" style="height: 445px">
+    <el-dialog top="10vh" v-model="showContacts" @closed="clearSelectContact" :title="t('contacts')">
+      <el-table ref="contactsTabRef" v-loading="contactsLoading" row-key="email" :data="contacts" style="height: 445px">
         <el-table-column type="selection" width="32" />
         <el-table-column property="email" :label="t('emailAccount')" >
           <template #default="props">
             <div class="email-row">{{ props.row.email }}</div>
           </template>
         </el-table-column>
-        <el-table-column width="55" label="" >
-          <template #default>
-            <div style="display: flex;">
-              <Icon icon="mage:user" style="color: var(--el-text-color-primary)" width="22" height="22" color="#606266" />
-            </div>
+        <el-table-column property="nickname" :label="t('contactNickname')" >
+          <template #default="props">
+            <div class="email-row">{{ props.row.nickname || '-' }}</div>
           </template>
         </el-table-column>
       </el-table>
       <div class="contacts-bottom">
-        <el-button type="default" @click="deleteContact">{{t('clear')}}</el-button>
         <el-button type="primary" @click="chooseContact">{{t('selectContacts')}}</el-button>
       </div>
     </el-dialog>
@@ -94,7 +95,7 @@
 </template>
 <script setup>
 import tinyEditor from '@/components/tiny-editor/index.vue'
-import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed} from "vue";
+import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw} from "vue";
 import {Icon} from "@iconify/vue";
 import {useUserStore} from "@/store/user.js";
 import {emailSend} from "@/request/email.js";
@@ -108,12 +109,12 @@ import {toOssDomain} from "@/utils/convert.js";
 import {formatDetailDate} from "@/utils/day.js";
 import {useSettingStore} from "@/store/setting.js";
 import {userDraftStore} from "@/store/draft.js";
-import {useWriterStore} from "@/store/writer.js";
 import db from "@/db/db.js";
 import dayjs from "dayjs";
 import {useI18n} from "vue-i18n";
 import router from "@/router/index.js";
 import {ElMessageBox} from "element-plus";
+import {contactList, recentRecipientList} from "@/request/contact.js";
 
 defineExpose({
   open,
@@ -123,7 +124,6 @@ defineExpose({
 })
 
 const {t} = useI18n()
-const writerStore = useWriterStore();
 const draftStore = userDraftStore()
 const settingStore = useSettingStore()
 const emailStore = useEmailStore();
@@ -137,6 +137,8 @@ let sending = false
 const defValue = ref('')
 const contactsTabRef = ref({})
 const showContacts = ref(false)
+const contacts = ref([])
+const contactsLoading = ref(false)
 const mySelect = ref()
 let selectStatus = false
 const backReply = reactive({
@@ -160,44 +162,31 @@ const form = reactive({
 })
 
 const selectRecipientList = ref([])
+const recentRecipients = ref([])
 
-const contacts = computed(() => writerStore.sendRecipientRecord.map(item => ({email: item})))
-
-function openContacts() {
+async function openContacts() {
   showContacts.value = true
+  contactsLoading.value = true
+  try {
+    contacts.value = await contactList({})
+  } finally {
+    contactsLoading.value = false
+  }
   nextTick(() => {
     form.receiveEmail.forEach(item => {
-      if (writerStore.sendRecipientRecord.includes(item)) {
-        contactsTabRef.value.toggleRowSelection({email: item});
-      }
+      const contact = contacts.value.find(entry => entry.email === item)
+      if (contact) contactsTabRef.value.toggleRowSelection(contact)
     })
   })
 }
 
-function deleteContact() {
-  ElMessageBox.confirm(t('confirmDeletionOfContacts'), {
-    confirmButtonText: t('confirm'),
-    cancelButtonText: t('cancel'),
-    type: 'warning'
-  }).then(() => {
-    const contactList = contactsTabRef.value.getSelectionRows().map(item => item.email);
-    form.receiveEmail = form.receiveEmail.filter(item => !contactList.includes(item));
-    writerStore.sendRecipientRecord = writerStore.sendRecipientRecord.filter(item => !contactList.includes(item));
-  })
-}
-
 function chooseContact() {
-
   const contactList = contactsTabRef.value.getSelectionRows().map(item => item.email);
   contactList.forEach(item => {
     if (!form.receiveEmail.includes(item)) {
       form.receiveEmail.push(item);
     }
   })
-
-  form.receiveEmail = form.receiveEmail.filter(item => {
-    return contactList.includes(item) || !writerStore.sendRecipientRecord.includes(item);
-  });
 
   showContacts.value = false
 }
@@ -207,7 +196,8 @@ function clearSelectContact() {
 }
 
 function selectChange(value) {
-  form.receiveEmail.push(value)
+  if (!form.receiveEmail.includes(value)) form.receiveEmail.push(value)
+  updateRecipientSuggestions()
 }
 
 function selectStatusChange(status) {
@@ -219,8 +209,7 @@ const openSelect = () => {
 }
 
 function inputChange(value) {
-
-  selectRecipientList.value = writerStore.sendRecipientRecord.filter(item => value && !form.receiveEmail.includes(item) && item.startsWith(value)).slice(0, 10);
+  updateRecipientSuggestions(value)
 
   if (!selectStatus && selectRecipientList.value.length > 0) {
     openSelect()
@@ -230,6 +219,24 @@ function inputChange(value) {
     openSelect()
   }
 
+}
+
+async function loadRecentRecipients() {
+  try {
+    recentRecipients.value = await recentRecipientList({})
+    updateRecipientSuggestions('')
+    if (selectRecipientList.value.length) nextTick(openSelect)
+  } catch {
+    recentRecipients.value = []
+    selectRecipientList.value = []
+  }
+}
+
+function updateRecipientSuggestions(value = '') {
+  const query = value.trim().toLocaleLowerCase()
+  selectRecipientList.value = recentRecipients.value.filter(item =>
+    !form.receiveEmail.includes(item.email) && (!query || item.email.toLocaleLowerCase().includes(query))
+  )
 }
 
 function addTagChange(val) {
@@ -368,8 +375,6 @@ async function sendEmail() {
 
     userStore.refreshUserInfo();
 
-    addRecipientRecord();
-
     if (form.draftId) {
       form.subject = ''
       form.content = ''
@@ -391,21 +396,11 @@ async function sendEmail() {
       router.replace('/login');
     }
     show.value = true
-    addRecipientRecord();
   }).finally(() => {
     percentMessage.close()
     percent.value = 0
     sending = false
   })
-}
-
-function addRecipientRecord() {
-  writerStore.sendRecipientRecord = writerStore.sendRecipientRecord.filter(
-      email => !form.receiveEmail.includes(email)
-  );
-
-  writerStore.sendRecipientRecord.unshift(...form.receiveEmail);
-  writerStore.sendRecipientRecord = writerStore.sendRecipientRecord.slice(0, 500);
 }
 
 function resetForm() {
@@ -610,6 +605,25 @@ function close() {
 }
 .write-select .el-select-dropdown__item {
   padding: 0 10px 0 10px;
+}
+
+.write-select .recipient-suggestion {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.write-select .recipient-suggestion span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.write-select .recipient-suggestion time {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 
 .write-select .el-select-dropdown {

@@ -28,6 +28,30 @@ const contactService = {
 			.all();
 	},
 
+	async recentRecipients(c, params, userId) {
+		const query = params.query?.trim();
+		const recipientEmail = sql`LOWER(json_extract(recipient.value, '$.address'))`;
+		const conditions = [
+			eq(email.userId, userId),
+			eq(email.type, emailConst.type.SEND),
+			eq(email.isDel, isDel.NORMAL),
+			ne(email.status, emailConst.status.SAVING),
+		];
+
+		if (query) conditions.push(sql`${recipientEmail} LIKE ${'%' + query.toLowerCase() + '%'}`);
+
+		return orm(c).select({
+			email: recipientEmail.as('email'),
+			lastSentTime: sql`MAX(${email.createTime})`.as('last_sent_time'),
+		}).from(email)
+			.innerJoin(sql`json_each(COALESCE(${email.recipient}, '[]')) AS recipient`, sql`1 = 1`)
+			.where(and(...conditions))
+			.groupBy(recipientEmail)
+			.orderBy(desc(sql`MAX(${email.createTime})`))
+			.limit(10)
+			.all();
+	},
+
 	async add(c, params, userId) {
 		const emailValue = params.email?.trim().toLowerCase();
 		if (!emailValue) throw new BizError(t('emptyEmail'));

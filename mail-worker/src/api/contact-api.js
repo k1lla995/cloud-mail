@@ -8,6 +8,11 @@ app.get('/contact/list', async (c) => {
 	return c.json(result.ok(data));
 });
 
+app.get('/contact/recent-recipients', async (c) => {
+	const data = await contactService.recentRecipients(c, c.req.query(), userContext.getUserId(c));
+	return c.json(result.ok(data));
+});
+
 app.post('/contact/add', async (c) => {
 	const data = await contactService.add(c, await c.req.json(), userContext.getUserId(c));
 	return c.json(result.ok(data));
