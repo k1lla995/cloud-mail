@@ -23,3 +23,11 @@ export function deleteBackground() {
 export function setBlackList(params) {
     return http.put('/setting/setBlacklist', params)
 }
+
+export function setPwaIcon(pwaIcon) {
+    return http.put('/setting/setPwaIcon', {pwaIcon})
+}
+
+export function deletePwaIcon() {
+    return http.delete('/setting/deletePwaIcon')
+}

@@ -18,6 +18,7 @@ export const setting = sqliteTable('setting', {
 	siteKey: text('site_key'),
 	regKey: integer('reg_key').default(1).notNull(),
 	background: text('background'),
+	pwaIcon: text('pwa_icon').default('').notNull(),
 	tgBotToken: text('tg_bot_token').default('').notNull(),
 	tgChatId: text('tg_chat_id').default('').notNull(),
 	tgBotStatus: integer('tg_bot_status').default(1).notNull(),

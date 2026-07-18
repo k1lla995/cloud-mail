@@ -18,22 +18,10 @@ export default defineConfig(({mode}) => {
         plugins: [vue(),
             VitePWA({
                 injectRegister: 'script-defer',
-                manifest: {
-                    name: env.VITE_PWA_NAME,
-                    short_name: env.VITE_PWA_NAME,
-                    background_color: '#FFFFFF',
-                    theme_color: '#FFFFFF',
-                    icons: [
-                        {
-                            src: 'mail-pwa.png',
-                            sizes: '192x192',
-                            type: 'image/png',
-                        }
-                    ],
-                },
+                manifest: false,
                 workbox: {
                     disableDevLogs: true,
-                    globPatterns: [],
+                    globPatterns: ['**/*.{js,css,html,png}'],
                     runtimeCaching: [],
                     navigateFallback: null,
                     cleanupOutdatedCaches: true,

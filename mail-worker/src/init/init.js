@@ -45,7 +45,16 @@ const dbInit = {
 		await this.v3_6DB(c);
 		await this.v3_7DB(c);
 		await this.v3_8DB(c);
+		await this.v3_9DB(c);
 		await settingService.refresh(c);
+	},
+
+	async v3_9DB(c) {
+		try {
+			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN pwa_icon TEXT NOT NULL DEFAULT '';`).run();
+		} catch (e) {
+			console.warn(`Skip PWA icon migration: ${e.message}`);
+		}
 	},
 
 	async v3_8DB(c) {

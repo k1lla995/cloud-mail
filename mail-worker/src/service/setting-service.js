@@ -194,6 +194,52 @@ const settingService = {
 		return background;
 	},
 
+	async deletePwaIcon(c) {
+		const { pwaIcon } = await this.query(c);
+		if (!pwaIcon) return;
+
+		await r2Service.delete(c, pwaIcon);
+		await orm(c).update(setting).set({ pwaIcon: '' }).run();
+		await this.refresh(c);
+	},
+
+	async setPwaIcon(c, params) {
+		const { pwaIcon } = params;
+		if (!pwaIcon) {
+			await this.deletePwaIcon(c);
+			return '';
+		}
+
+		const settingData = await this.query(c);
+		if ((await r2Service.storageType(c)) !== 'KV' && !settingData.r2Domain) {
+			throw new BizError(t('noOsDomainUpBack'));
+		}
+
+		const file = fileUtils.base64ToFile(pwaIcon, 'pwa-icon');
+		if (file.type !== 'image/png') {
+			throw new BizError('PWA icon must be a PNG image');
+		}
+
+		const arrayBuffer = await file.arrayBuffer();
+		const key = constant.PWA_ICON_PREFIX + await fileUtils.getBuffHash(arrayBuffer) + '.png';
+		const current = settingData.pwaIcon;
+
+		await r2Service.putObj(c, key, arrayBuffer, {
+			contentType: 'image/png',
+			cacheControl: 'public, max-age=31536000, immutable',
+			contentDisposition: 'inline; filename="pwa-icon.png"'
+		});
+
+		await orm(c).update(setting).set({ pwaIcon: key }).run();
+		await this.refresh(c);
+
+		if (current && current !== key) {
+			await r2Service.delete(c, current);
+		}
+
+		return key;
+	},
+
 
 	async setBlacklist(c, params) {
 		const { blackSubject, blackContent, blackFrom  } = params
@@ -220,6 +266,7 @@ const settingService = {
 			r2Domain: settingRow.r2Domain,
 			siteKey: settingRow.siteKey,
 			background: settingRow.background,
+			pwaIcon: settingRow.pwaIcon,
 			loginOpacity: settingRow.loginOpacity,
 			loginGlass: settingRow.loginGlass,
 			loginGame: settingRow.loginGame,

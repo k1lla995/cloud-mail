@@ -28,6 +28,37 @@ app.delete('/setting/deleteBackground', async (c) => {
 	return c.json(result.ok());
 });
 
+app.put('/setting/setPwaIcon', async (c) => {
+	const key = await settingService.setPwaIcon(c, await c.req.json());
+	return c.json(result.ok(key));
+});
+
+app.delete('/setting/deletePwaIcon', async (c) => {
+	await settingService.deletePwaIcon(c);
+	return c.json(result.ok());
+});
+
+app.get('/setting/pwaManifest', async (c) => {
+	const setting = await settingService.query(c);
+	const icon = setting.pwaIcon
+		? (setting.r2Domain
+			? `${setting.r2Domain.replace(/\/$/, '').replace(/^([^:]+)$/, 'https://$1')}/${setting.pwaIcon}`
+			: `/${setting.pwaIcon}`)
+		: '/codex-pet-favicon.png';
+
+	return c.json({
+		name: setting.title || 'k1lla-mailplus',
+		short_name: setting.title || 'k1lla-mailplus',
+		start_url: '/',
+		display: 'standalone',
+		background_color: '#FFFFFF',
+		theme_color: '#FFFFFF',
+		icons: [{ src: icon, sizes: setting.pwaIcon ? '512x512' : '256x256', type: 'image/png', purpose: 'any maskable' }]
+	}, 200, {
+		'Cache-Control': 'no-cache, no-store, must-revalidate'
+	});
+});
+
 app.put('/setting/setBlacklist', async (c) => {
 	const setting = await settingService.setBlacklist(c, await c.req.json());
 	return c.json(result.ok(setting));

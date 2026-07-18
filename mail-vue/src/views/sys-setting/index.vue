@@ -95,6 +95,25 @@
                   </el-button>
                 </div>
               </div>
+              <div class="setting-item pwa-icon-setting">
+                <div>
+                  <span>{{ $t('pwaInstallIcon') }}</span>
+                  <small>{{ $t('pwaInstallIconDesc') }}</small>
+                </div>
+                <div class="pwa-icon-control">
+                  <el-image class="pwa-icon-preview" :src="pwaIconSrc" fit="cover" />
+                  <el-tooltip :content="$t('localUpload')">
+                    <el-button class="opt-button" size="small" type="primary" :loading="pwaIconLoading" @click="openPwaIconUpload">
+                      <Icon icon="material-symbols:upload-rounded" width="16" height="16"/>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip :content="$t('restore')">
+                    <el-button class="opt-button" size="small" :disabled="!setting.pwaIcon" @click="resetPwaIcon">
+                      <Icon icon="material-symbols:restart-alt-rounded" width="16" height="16"/>
+                    </el-button>
+                  </el-tooltip>
+                </div>
+              </div>
               <div class="setting-item">
                 <div class="title-item"><span>{{ $t('loginBoxOpacity') }}</span></div>
                 <div>
@@ -854,7 +873,7 @@
 
 <script setup>
 import {computed, defineOptions, nextTick, reactive, ref} from "vue";
-import {deleteBackground, setBackground, setBlackList, settingQuery, settingSet} from "@/request/setting.js";
+import {deleteBackground, deletePwaIcon, setBackground, setBlackList, setPwaIcon, settingQuery, settingSet} from "@/request/setting.js";
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
@@ -907,6 +926,7 @@ const emailPrefixFilter = ref([])
 const backgroundUrl = ref('')
 let backgroundFile = {}
 const showSetBackground = ref(false)
+const pwaIconLoading = ref(false)
 let regVerifyCount = ref(1)
 let addVerifyCount = ref(1)
 let loginVerifyCount = ref(5)
@@ -965,6 +985,11 @@ const authRefreshOptions = computed(() => [
   {label: '15s', value: 15},
   {label: '20s', value: 20},
 ])
+
+const pwaIconSrc = computed(() => setting.value.pwaIcon
+    ? (setting.value.r2Domain ? cvtR2Url(setting.value.pwaIcon) : `/${setting.value.pwaIcon}`)
+    : '/codex-pet-favicon.png'
+)
 
 const tgChatId = ref([])
 const customDomain = ref('')
@@ -1447,6 +1472,76 @@ function openCut() {
     backgroundImage.value = URL.createObjectURL(e.target.files[0])
     localUpShow.value = true
   }
+}
+
+function openPwaIconUpload() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/png,image/jpeg,image/webp'
+  input.onchange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      pwaIconLoading.value = true
+      const icon = await createPwaIcon(file)
+      const key = await setPwaIcon(icon)
+      setting.value.pwaIcon = key
+      ElMessage({message: t('saveSuccessMsg'), type: 'success', plain: true})
+    } catch (error) {
+      ElMessage({message: t('pwaInstallIconError'), type: 'error', plain: true})
+    } finally {
+      pwaIconLoading.value = false
+    }
+  }
+  input.click()
+}
+
+function resetPwaIcon() {
+  ElMessageBox.confirm(t('resetPwaInstallIconConfirm'), {
+    confirmButtonText: t('confirm'),
+    cancelButtonText: t('cancel'),
+    type: 'warning'
+  }).then(async () => {
+    pwaIconLoading.value = true
+    try {
+      await deletePwaIcon()
+      setting.value.pwaIcon = ''
+      ElMessage({message: t('saveSuccessMsg'), type: 'success', plain: true})
+    } finally {
+      pwaIconLoading.value = false
+    }
+  })
+}
+
+function createPwaIcon(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    image.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 512
+      canvas.height = 512
+      const context = canvas.getContext('2d')
+      if (!context) {
+        URL.revokeObjectURL(objectUrl)
+        reject(new Error('Canvas is unavailable'))
+        return
+      }
+
+      const sourceSize = Math.min(image.width, image.height)
+      const sourceX = (image.width - sourceSize) / 2
+      const sourceY = (image.height - sourceSize) / 2
+      context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 512, 512)
+      URL.revokeObjectURL(objectUrl)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Invalid image'))
+    }
+    image.src = objectUrl
+  })
 }
 
 function saveR2domain() {
@@ -1980,6 +2075,39 @@ function editSetting(settingForm, refreshStatus = true) {
       margin-top: 0;
     }
   }
+}
+
+.pwa-icon-setting {
+  align-items: center;
+
+  > div:first-child {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  small {
+    max-width: 245px;
+    color: var(--secondary-text-color);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+
+.pwa-icon-control {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.pwa-icon-preview {
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  border: 1px solid var(--light-border);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
 }
 
 .color-setting {
