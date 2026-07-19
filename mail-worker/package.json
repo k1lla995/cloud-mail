@@ -4,7 +4,8 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev --config wrangler-dev.toml",
-		"test": "wrangler deploy --config wrangler-test.toml",
+		"test": "vitest run",
+		"deploy:test": "wrangler deploy --config wrangler-test.toml",
 		"update:disposable-domains": "node scripts/update-disposable-domains.mjs",
 		"deploy": "wrangler deploy",
 		"prepare:cloudflare": "node scripts/prepare-cloudflare-config.mjs",
