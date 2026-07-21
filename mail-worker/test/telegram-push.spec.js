@@ -103,4 +103,50 @@ describe('per-user Telegram push', () => {
 		});
 		expect(revoke.data).toMatchObject({ authorized: 0, pushEnabled: 0 });
 	});
+
+
+	it('accepts /start@bot commands and refuses empty secret overwrites', async () => {
+		const initialized = await request(`/init/${JWT_SECRET}`);
+		const rootLogin = await login('admin@example.com', initialized.admin.temporaryPassword);
+		const rootToken = rootLogin.data.token;
+
+		await request('/setting/set', {
+			method: 'PUT',
+			headers: { Authorization: rootToken, 'content-type': 'application/json' },
+			body: JSON.stringify({ tgBotToken: 'test-token', tgWebhookSecret: 'keep-secret', resendTokens: {} })
+		});
+
+		// Empty secret must not wipe the configured webhook secret.
+		await request('/setting/set', {
+			method: 'PUT',
+			headers: { Authorization: rootToken, 'content-type': 'application/json' },
+			body: JSON.stringify({ title: 'k1lla', tgWebhookSecret: '', resendTokens: {} })
+		});
+		const secretRow = await env.db.prepare('SELECT tg_webhook_secret AS secret FROM setting').first();
+		expect(secretRow.secret).toBe('keep-secret');
+
+		const binding = await request('/my/telegram/binding', {
+			method: 'POST', headers: { Authorization: rootToken }
+		});
+		expect(binding.code).toBe(200);
+
+		const webhook = await request('/telegram/webhook', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				'X-Telegram-Bot-Api-Secret-Token': 'keep-secret'
+			},
+			body: JSON.stringify({
+				message: {
+					text: `/start@my_mail_bot bind_${binding.data.code}`,
+					chat: { id: 777, type: 'private', username: 'root' }
+				}
+			})
+		});
+		expect(webhook.ok).toBe(true);
+		const root = await env.db.prepare('SELECT user_id AS userId FROM user WHERE email = ?').bind('admin@example.com').first();
+		const bound = await env.db.prepare('SELECT chat_id AS chatId FROM user_telegram WHERE user_id = ?').bind(root.userId).first();
+		expect(bound.chatId).toBe('777');
+	});
+
 });

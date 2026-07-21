@@ -586,7 +586,7 @@
         </template>
         <div class="forward-set-body">
           <el-input :placeholder="setting.tgBotToken || $t('tgBotToken')" v-model="tgBotToken"></el-input>
-          <el-alert type="info" :closable="false" title="Users bind their own private Telegram chat from Personal Settings after root authorization." />
+          <el-alert type="info" :closable="false" title="先保存 Token，再点「Configure binding webhook」。用户在「个人设置」绑定机器人私聊并打开推送开关。" />
           <el-input tag-type="warning" :placeholder="$t('customDomainDesc')" v-model="customDomain" ></el-input>
           <div class="tg-msg-label">
             <span>{{t('from')}}</span>
@@ -1475,8 +1475,15 @@ function openCut() {
 
 function setupTelegramWebhook() {
   webhookLoading.value = true
-  configureTelegramWebhook().then(({ webhookUrl }) => {
-    ElMessage({ message: `Telegram binding webhook configured: ${webhookUrl}`, type: 'success', plain: true })
+  configureTelegramWebhook().then((data) => {
+    const err = data?.webhookInfo?.lastErrorMessage
+    ElMessage({
+      message: err
+        ? `Webhook configured: ${data.webhookUrl} (Telegram last error: ${err})`
+        : `Webhook configured: ${data.webhookUrl}. Re-bind from Personal Settings if needed.`,
+      type: err ? 'warning' : 'success',
+      plain: true
+    })
   }).finally(() => {
     webhookLoading.value = false
   })
@@ -1604,6 +1611,7 @@ function change(e) {
   delete settingForm.s3AccessKey
   delete settingForm.s3SecretKey
   delete settingForm.tgBotToken
+  delete settingForm.tgWebhookSecret
   delete settingForm.resendTokens
   editSetting(settingForm, false)
 }

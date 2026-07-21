@@ -43,24 +43,29 @@
       </el-select>
     </div>
     <div class="telegram-setting" v-if="telegram">
-      <div class="title">Telegram Push</div>
+      <div class="title">Telegram 推送</div>
       <template v-if="telegram.authorized">
         <div class="telegram-status">
-          <span>{{ telegram.chatId ? 'Private chat verified' : 'No private chat bound' }}</span>
+          <span>{{ telegram.chatId ? '已绑定私聊' : '尚未绑定私聊' }}</span>
           <el-switch :disabled="!telegram.chatId || telegramLoading" :model-value="Boolean(telegram.pushEnabled)" @change="changeTelegramPush" />
+        </div>
+        <div class="telegram-hint">
+          1. 点击「绑定 Telegram」生成命令（10 分钟内有效）<br>
+          2. 打开你的机器人私聊，粘贴完整命令发送<br>
+          3. 看到机器人回复绑定成功后，再打开右侧推送开关
         </div>
         <div v-if="bindingCode" class="telegram-bind-code">
           <code>/start bind_{{ bindingCode }}</code>
-          <el-button size="small" @click="copyBindingCommand">Copy command</el-button>
+          <el-button size="small" @click="copyBindingCommand">复制命令</el-button>
         </div>
         <div class="telegram-actions">
           <el-button type="primary" :loading="telegramLoading" @click="createBinding">
-            {{ telegram.chatId ? 'Bind another chat' : 'Bind Telegram' }}
+            {{ telegram.chatId ? '重新绑定' : '绑定 Telegram' }}
           </el-button>
-          <el-button v-if="telegram.chatId" :disabled="telegramLoading" @click="removeTelegramBinding">Unbind</el-button>
+          <el-button v-if="telegram.chatId" :disabled="telegramLoading" @click="removeTelegramBinding">解除绑定</el-button>
         </div>
       </template>
-      <div v-else class="telegram-disabled">Telegram push has not been authorized by the root administrator.</div>
+      <div v-else class="telegram-disabled">站长尚未为该账号授权 Telegram 推送。</div>
     </div>
     <div class="del-email" v-perm="'my:delete'">
       <div class="title">{{$t('deleteUser')}}</div>
@@ -173,7 +178,7 @@ function createBinding() {
 
 function copyBindingCommand() {
   navigator.clipboard.writeText(`/start bind_${bindingCode.value}`)
-  ElMessage({ message: 'Telegram command copied', type: 'success', plain: true })
+  ElMessage({ message: '绑定命令已复制，请在 10 分钟内发给机器人', type: 'success', plain: true })
 }
 
 function changeTelegramPush(enabled) {
@@ -357,6 +362,12 @@ function submitPwd() {
     gap: 14px;
     margin-bottom: 40px;
   }
+
+  .telegram-hint {
+      color: var(--regular-text-color);
+      line-height: 1.6;
+      font-size: 13px;
+    }
 
   .telegram-status, .telegram-actions, .telegram-bind-code {
     display: flex;

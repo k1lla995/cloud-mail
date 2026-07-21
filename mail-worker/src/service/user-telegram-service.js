@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import orm from '../entity/orm';
 import { telegramBinding, userTelegram } from '../entity/user-telegram';
 import user from '../entity/user';
@@ -115,36 +115,39 @@ const userTelegramService = {
 
 	async consumeBinding(c, code, chat) {
 		const codeHash = await hashCode(code);
-		const binding = await orm(c).select().from(telegramBinding).where(and(
-			eq(telegramBinding.codeHash, codeHash),
-			gt(telegramBinding.expiresAt, new Date().toISOString())
-		)).get();
-		if (!binding) return null;
+		const binding = await orm(c).select().from(telegramBinding).where(eq(telegramBinding.codeHash, codeHash)).get();
+		if (!binding) return { ok: false, reason: 'invalid' };
+		if (!(binding.expiresAt > new Date().toISOString())) {
+			await orm(c).delete(telegramBinding).where(eq(telegramBinding.codeHash, codeHash)).run();
+			return { ok: false, reason: 'expired' };
+		}
 
 		const owner = await orm(c).select().from(user).where(eq(user.userId, binding.userId)).get();
-		const config = await this.get(c, binding.userId);
-		if (!owner || owner.isDel !== isDel.NORMAL || owner.status !== userConst.status.NORMAL || !config.authorized) {
-			return null;
+		const configRow = await orm(c).select().from(userTelegram).where(eq(userTelegram.userId, binding.userId)).get();
+		const authorized = Number(configRow?.authorized) === 1;
+		if (!owner || owner.isDel !== isDel.NORMAL || owner.status !== userConst.status.NORMAL || !authorized) {
+			return { ok: false, reason: 'unauthorized' };
 		}
+
 		await orm(c).insert(userTelegram).values({
-				userId: binding.userId,
-				authorized: 1,
+			userId: binding.userId,
+			authorized: 1,
+			chatId: String(chat.id),
+			chatUsername: chat.username || '',
+			boundAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString()
+		}).onConflictDoUpdate({
+			target: userTelegram.userId,
+			set: {
 				chatId: String(chat.id),
 				chatUsername: chat.username || '',
 				boundAt: new Date().toISOString(),
+				pushEnabled: 0,
 				updatedAt: new Date().toISOString()
-			}).onConflictDoUpdate({
-				target: userTelegram.userId,
-				set: {
-					chatId: String(chat.id),
-					chatUsername: chat.username || '',
-					boundAt: new Date().toISOString(),
-					pushEnabled: 0,
-					updatedAt: new Date().toISOString()
-				}
-			}).run();
+			}
+		}).run();
 		await orm(c).delete(telegramBinding).where(eq(telegramBinding.codeHash, codeHash)).run();
-		return binding.userId;
+		return { ok: true, userId: binding.userId };
 	},
 
 	async recipient(c, userId) {
@@ -155,3 +158,4 @@ const userTelegramService = {
 };
 
 export default userTelegramService;
+

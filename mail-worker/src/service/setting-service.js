@@ -28,7 +28,7 @@ const settingService = {
 		const setting = await c.env.kv.get(KvConst.SETTING, { type: 'json' });
 
 		if (!setting) {
-			throw new BizError('数据库未初始化 Database not initialized.');
+			throw new BizError('鏁版嵁搴撴湭鍒濆鍖?Database not initialized.');
 		}
 
 		let domainList = c.env.domain;
@@ -82,11 +82,12 @@ const settingService = {
 
 	async get(c, showSiteKey = false) {
 
-		const [settingRow, recordList] = await Promise.all([
+		const [rawSetting, recordList] = await Promise.all([
 			await this.query(c),
 			verifyRecordService.selectListByIP(c)
 		]);
-
+		// Clone so masking never mutates the request/KV-backed settings cache.
+		const settingRow = { ...rawSetting, resendTokens: { ...rawSetting.resendTokens } };
 
 		if (!showSiteKey) {
 			settingRow.siteKey = settingRow.siteKey ? `${settingRow.siteKey.slice(0, 6)}******` : null;
@@ -101,6 +102,7 @@ const settingService = {
 		settingRow.s3AccessKey = settingRow.s3AccessKey ? `${settingRow.s3AccessKey.slice(0, 12)}******` : null;
 		settingRow.s3SecretKey = settingRow.s3SecretKey ? `${settingRow.s3SecretKey.slice(0, 12)}******` : null;
 		settingRow.tgBotToken = settingRow.tgBotToken ? `${settingRow.tgBotToken.slice(0, 20)}******` : null;
+		delete settingRow.tgWebhookSecret;
 		settingRow.hasR2 = !!c.env.r2
 		settingRow.hasCfEmail = !!c.env.email
 
@@ -131,6 +133,23 @@ const settingService = {
 
 	async set(c, params) {
 		const settingData = await this.query(c);
+		params = { ...params };
+
+		// Ignore empty/masked secrets so bulk frontend saves cannot clear Telegram config.
+		const secretFields = ['tgBotToken', 'tgWebhookSecret', 'secretKey', 's3AccessKey', 's3SecretKey', 'siteKey'];
+		for (const field of secretFields) {
+			if (!(field in params)) continue;
+			const value = params[field];
+			if (value == null || value === '' || (typeof value === 'string' && value.includes('******'))) {
+				delete params[field];
+			}
+		}
+
+		// Drop non-column / computed fields that the admin UI may re-post.
+		for (const field of ['domainList', 'hasR2', 'hasCfEmail', 'projectLink', 'linuxdoClientId', 'linuxdoCallbackUrl', 'linuxdoSwitch', 'regVerifyOpen', 'addVerifyOpen', 'loginVerifyOpen', 'storageType']) {
+			delete params[field];
+		}
+
 		let resendTokens = { ...settingData.resendTokens, ...params.resendTokens };
 		Object.keys(resendTokens).forEach(domain => {
 			if (!resendTokens[domain]) delete resendTokens[domain];
@@ -296,3 +315,4 @@ const settingService = {
 };
 
 export default settingService;
+
