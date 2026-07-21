@@ -3,6 +3,7 @@ import userService from '../service/user-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 import accountService from '../service/account-service';
+import userTelegramService from '../service/user-telegram-service';
 
 app.delete('/user/delete', async (c) => {
 	await userService.physicsDelete(c, c.req.query());
@@ -52,6 +53,11 @@ app.get('/user/allAccount', async (c) => {
 app.delete('/user/deleteAccount', async (c) => {
 	await accountService.physicsDelete(c, c.req.query());
 	return c.json(result.ok());
+});
+
+app.put('/user/setTelegramAuthorization', async (c) => {
+	const telegram = await userTelegramService.setAuthorization(c, await c.req.json());
+	return c.json(result.ok(telegram));
 });
 
 

@@ -2,6 +2,8 @@ import app from '../hono/hono';
 import result from '../model/result';
 import settingService from '../service/setting-service';
 import userContext from "../security/user-context";
+import telegramService from '../service/telegram-service';
+import accessControlService from '../security/access-control-service';
 
 app.put('/setting/set', async (c) => {
 	await settingService.set(c, await c.req.json());
@@ -63,4 +65,11 @@ app.put('/setting/setBlacklist', async (c) => {
 	const setting = await settingService.setBlacklist(c, await c.req.json());
 	return c.json(result.ok(setting));
 })
+
+app.post('/setting/configureTelegramWebhook', async (c) => {
+	if (!await accessControlService.isRootAdmin(c)) {
+		return c.json(result.fail('Only the root administrator can configure the Telegram webhook', 403), 403);
+	}
+	return c.json(result.ok(await telegramService.configureWebhook(c)));
+});
 

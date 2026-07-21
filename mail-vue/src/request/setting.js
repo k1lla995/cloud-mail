@@ -31,3 +31,7 @@ export function setPwaIcon(pwaIcon) {
 export function deletePwaIcon() {
     return http.delete('/setting/deletePwaIcon')
 }
+
+export function configureTelegramWebhook() {
+    return http.post('/setting/configureTelegramWebhook')
+}

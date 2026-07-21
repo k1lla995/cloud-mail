@@ -91,6 +91,9 @@
                     <el-dropdown-item @click="openSetPwd(props.row)" >{{ $t('chgPwd') }}</el-dropdown-item>
                     <el-dropdown-item @click="openSetType(props.row)" >{{ $t('perm') }}</el-dropdown-item>
                     <template v-if="props.row.type !== 0">
+						<el-dropdown-item v-if="userStore.user.type === 0" @click="setTelegramAuthorization(props.row)">
+							{{ props.row.telegramAuthorized ? 'Revoke Telegram push' : 'Authorize Telegram push' }}
+						</el-dropdown-item>
                       <el-dropdown-item v-if="props.row.isDel !== 1" @click="setStatus(props.row)">
                         {{ setStatusName(props.row) }}
                       </el-dropdown-item>
@@ -376,7 +379,8 @@ import {
   userRestSendCount,
   userRestore,
   userDeleteAccount,
-  userAllAccount
+  userAllAccount,
+  userSetTelegramAuthorization
 } from '@/request/user.js'
 import {roleSelectUse} from "@/request/role.js";
 import {Icon} from "@iconify/vue";
@@ -880,6 +884,18 @@ function restore(user) {
 
 function setStatus(user) {
   httpSetStatus(user);
+}
+
+function setTelegramAuthorization(user) {
+  const authorized = user.telegramAuthorized ? 0 : 1
+  userSetTelegramAuthorization(user.userId, authorized).then(({ authorized: saved }) => {
+    user.telegramAuthorized = saved
+    ElMessage({
+      message: saved ? 'Telegram push authorized' : 'Telegram push revoked',
+      type: 'success',
+      plain: true
+    })
+  })
 }
 
 function httpSetStatus(user) {

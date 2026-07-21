@@ -41,3 +41,7 @@ export function userAllAccount(userId, num, size) {
 export function userDeleteAccount(accountId) {
     return http.delete('/user/deleteAccount', {params:{accountId}})
 }
+
+export function userSetTelegramAuthorization(userId, authorized) {
+    return http.put('/user/setTelegramAuthorization', { userId, authorized })
+}

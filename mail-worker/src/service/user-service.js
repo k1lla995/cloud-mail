@@ -20,6 +20,7 @@ import {oauth} from "../entity/oauth";
 import oauthService from "./oauth-service";
 import adminUtils from '../utils/admin-utils';
 import accessControlService from '../security/access-control-service';
+import { userTelegram } from '../entity/user-telegram';
 
 const userService = {
 
@@ -162,11 +163,13 @@ const userService = {
 
 		const query = orm(c).select({
 			...user,
+			telegramAuthorized: userTelegram.authorized,
 			username: oauth.username,
 			trustLevel: oauth.trustLevel,
 			avatar: oauth.avatar,
 			name: oauth.name
 		}).from(user).leftJoin(oauth, eq(oauth.userId, user.userId))
+			.leftJoin(userTelegram, eq(userTelegram.userId, user.userId))
 			.where(and(...conditions));
 
 

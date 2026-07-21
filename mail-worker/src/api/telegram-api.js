@@ -7,3 +7,8 @@ app.get('/telegram/getEmail/:token', async (c) => {
 	return c.html(content)
 });
 
+app.post('/telegram/webhook', async (c) => {
+	await telegramService.handleWebhook(c, await c.req.json());
+	return c.json({ ok: true });
+});
+

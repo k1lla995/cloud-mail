@@ -21,8 +21,6 @@ export async function email(message, env, ctx) {
 
 		const {
 			receive,
-			tgChatId,
-			tgBotStatus,
 			forwardStatus,
 			forwardEmail,
 			ruleEmail,
@@ -170,9 +168,7 @@ export async function email(message, env, ctx) {
 		}
 
 		//转发到TG
-		if (tgBotStatus === settingConst.tgBotStatus.OPEN && tgChatId) {
-			await telegramService.sendEmailToBot({ env }, emailRow)
-		}
+		await telegramService.sendEmailToUser({ env }, emailRow)
 
 		//转发到其他邮箱
 		if (forwardStatus === settingConst.forwardStatus.OPEN && forwardEmail) {

@@ -46,7 +46,34 @@ const dbInit = {
 		await this.v3_7DB(c);
 		await this.v3_8DB(c);
 		await this.v3_9DB(c);
+		await this.v4_0DB(c);
 		await settingService.refresh(c);
+	},
+
+	async v4_0DB(c) {
+		try {
+			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN tg_webhook_secret TEXT NOT NULL DEFAULT '';`).run();
+		} catch (e) {
+			console.warn(`Skip Telegram webhook secret migration: ${e.message}`);
+		}
+		await c.env.db.batch([
+			c.env.db.prepare(`CREATE TABLE IF NOT EXISTS user_telegram (
+				user_id INTEGER PRIMARY KEY,
+				authorized INTEGER NOT NULL DEFAULT 0,
+				push_enabled INTEGER NOT NULL DEFAULT 0,
+				chat_id TEXT NOT NULL DEFAULT '',
+				chat_username TEXT NOT NULL DEFAULT '',
+				bound_at DATETIME,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`),
+			c.env.db.prepare(`CREATE TABLE IF NOT EXISTS telegram_binding (
+				code_hash TEXT PRIMARY KEY,
+				user_id INTEGER NOT NULL,
+				expires_at DATETIME NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`),
+			c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_telegram_binding_user_id ON telegram_binding(user_id)`)
+		]);
 	},
 
 	async v3_9DB(c) {

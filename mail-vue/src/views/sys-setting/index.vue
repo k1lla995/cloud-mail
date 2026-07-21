@@ -586,8 +586,7 @@
         </template>
         <div class="forward-set-body">
           <el-input :placeholder="setting.tgBotToken || $t('tgBotToken')" v-model="tgBotToken"></el-input>
-          <el-input-tag tag-type="warning" :placeholder="$t('toBotTokenDesc')" v-model="tgChatId"
-                        @add-tag="addChatTag"></el-input-tag>
+          <el-alert type="info" :closable="false" title="Users bind their own private Telegram chat from Personal Settings after root authorization." />
           <el-input tag-type="warning" :placeholder="$t('customDomainDesc')" v-model="customDomain" ></el-input>
           <div class="tg-msg-label">
             <span>{{t('from')}}</span>
@@ -625,8 +624,9 @@
         </div>
         <template #footer>
           <div class="dialog-footer">
-            <el-switch v-model="tgBotStatus" :active-value="0" :inactive-value="1" :active-text="$t('enable')"
-                       :inactive-text="$t('disable')"/>
+			<el-button v-if="userStore.user.type === 0" :loading="webhookLoading" @click="setupTelegramWebhook">
+			  Configure binding webhook
+			</el-button>
             <el-button :loading="settingLoading" type="primary" @click="tgBotSave">
               {{ $t('save') }}
             </el-button>
@@ -873,7 +873,7 @@
 
 <script setup>
 import {computed, defineOptions, nextTick, reactive, ref} from "vue";
-import {deleteBackground, deletePwaIcon, setBackground, setBlackList, setPwaIcon, settingQuery, settingSet} from "@/request/setting.js";
+import {configureTelegramWebhook, deleteBackground, deletePwaIcon, setBackground, setBlackList, setPwaIcon, settingQuery, settingSet} from "@/request/setting.js";
 import {useSettingStore} from "@/store/setting.js";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
@@ -995,6 +995,7 @@ const tgChatId = ref([])
 const customDomain = ref('')
 const tgBotStatus = ref(0)
 const tgBotToken = ref('')
+const webhookLoading = ref(false)
 const forwardEmail = ref([])
 const forwardStatus = ref(0)
 const emailColumnWidth = ref(0)
@@ -1270,8 +1271,6 @@ function saveS3() {
 function tgBotSave() {
   const form = {
     customDomain: customDomain.value,
-    tgBotStatus: tgBotStatus.value,
-    tgChatId: tgChatId.value + '',
     tgMsgFrom: tgMsgFrom.value,
     tgMsgText: tgMsgText.value,
     tgMsgTo: tgMsgTo.value
@@ -1472,6 +1471,15 @@ function openCut() {
     backgroundImage.value = URL.createObjectURL(e.target.files[0])
     localUpShow.value = true
   }
+}
+
+function setupTelegramWebhook() {
+  webhookLoading.value = true
+  configureTelegramWebhook().then(({ webhookUrl }) => {
+    ElMessage({ message: `Telegram binding webhook configured: ${webhookUrl}`, type: 'success', plain: true })
+  }).finally(() => {
+    webhookLoading.value = false
+  })
 }
 
 function openPwaIconUpload() {

@@ -42,6 +42,26 @@
         <el-option label="English" value="en" @pointerdown.prevent.stop="changeLang('en')"/>
       </el-select>
     </div>
+    <div class="telegram-setting" v-if="telegram">
+      <div class="title">Telegram Push</div>
+      <template v-if="telegram.authorized">
+        <div class="telegram-status">
+          <span>{{ telegram.chatId ? 'Private chat verified' : 'No private chat bound' }}</span>
+          <el-switch :disabled="!telegram.chatId || telegramLoading" :model-value="Boolean(telegram.pushEnabled)" @change="changeTelegramPush" />
+        </div>
+        <div v-if="bindingCode" class="telegram-bind-code">
+          <code>/start bind_{{ bindingCode }}</code>
+          <el-button size="small" @click="copyBindingCommand">Copy command</el-button>
+        </div>
+        <div class="telegram-actions">
+          <el-button type="primary" :loading="telegramLoading" @click="createBinding">
+            {{ telegram.chatId ? 'Bind another chat' : 'Bind Telegram' }}
+          </el-button>
+          <el-button v-if="telegram.chatId" :disabled="telegramLoading" @click="removeTelegramBinding">Unbind</el-button>
+        </div>
+      </template>
+      <div v-else class="telegram-disabled">Telegram push has not been authorized by the root administrator.</div>
+    </div>
     <div class="del-email" v-perm="'my:delete'">
       <div class="title">{{$t('deleteUser')}}</div>
       <div style="color: var(--regular-text-color);">
@@ -62,7 +82,7 @@
 </template>
 <script setup>
 import {reactive, ref, defineOptions} from 'vue'
-import {resetPassword, userDelete} from "@/request/my.js";
+import {createTelegramBinding, resetPassword, setTelegramPush, telegramConfig, unbindTelegram, userDelete} from "@/request/my.js";
 import {useUserStore} from "@/store/user.js";
 import router from "@/router/index.js";
 import {accountSetName} from "@/request/account.js";
@@ -78,6 +98,9 @@ const setPwdLoading = ref(false)
 const setNameShow = ref(false)
 const accountName = ref(null)
 const langSelect = ref(settingStore.lang)
+const telegram = ref(null)
+const bindingCode = ref('')
+const telegramLoading = ref(false)
 
 defineOptions({
   name: 'setting'
@@ -132,6 +155,47 @@ function changeLang(lang) {
   localStorage.setItem('setting', JSON.stringify({...setting, lang}))
   window.location.reload()
 }
+
+function loadTelegram() {
+  telegramConfig().then(data => {
+    telegram.value = data
+  })
+}
+
+function createBinding() {
+  telegramLoading.value = true
+  createTelegramBinding().then(({ code }) => {
+    bindingCode.value = code
+  }).finally(() => {
+    telegramLoading.value = false
+  })
+}
+
+function copyBindingCommand() {
+  navigator.clipboard.writeText(`/start bind_${bindingCode.value}`)
+  ElMessage({ message: 'Telegram command copied', type: 'success', plain: true })
+}
+
+function changeTelegramPush(enabled) {
+  telegramLoading.value = true
+  setTelegramPush(enabled).then(data => {
+    telegram.value = data
+  }).finally(() => {
+    telegramLoading.value = false
+  })
+}
+
+function removeTelegramBinding() {
+  telegramLoading.value = true
+  unbindTelegram().then(data => {
+    telegram.value = data
+    bindingCode.value = ''
+  }).finally(() => {
+    telegramLoading.value = false
+  })
+}
+
+loadTelegram()
 
 const pwdShow = ref(false)
 const form = reactive({
@@ -284,6 +348,35 @@ function submitPwd() {
     .language-select {
       width: 100px;
     }
+  }
+
+  .telegram-setting {
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 40px;
+  }
+
+  .telegram-status, .telegram-actions, .telegram-bind-code {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .telegram-bind-code {
+    padding: 10px 12px;
+    border-left: 3px solid var(--el-color-primary);
+    background: var(--el-fill-color-light);
+  }
+
+  .telegram-bind-code code {
+    overflow-wrap: anywhere;
+  }
+
+  .telegram-disabled {
+    color: var(--regular-text-color);
   }
 
   .del-email {
