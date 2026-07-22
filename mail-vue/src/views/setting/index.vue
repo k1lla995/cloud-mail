@@ -38,32 +38,32 @@
           placeholder="Select"
           @change="changeLang"
       >
-        <el-option label="??" value="zh" @pointerdown.prevent.stop="changeLang('zh')"/>
+        <el-option label="中文" value="zh" @pointerdown.prevent.stop="changeLang('zh')"/>
         <el-option label="English" value="en" @pointerdown.prevent.stop="changeLang('en')"/>
       </el-select>
     </div>
     <div class="telegram-setting" v-if="telegram">
-      <div class="title">Telegram Push</div>
+      <div class="title">Telegram 推送</div>
       <template v-if="telegram.authorized">
         <div class="telegram-status">
-          <span>{{ telegram.chatId ? 'Private chat bound' : 'Not bound yet' }}</span>
+          <span>{{ telegram.chatId ? '已绑定私聊' : '尚未绑定私聊' }}</span>
           <el-switch :disabled="!telegram.chatId || telegramLoading" :model-value="Boolean(telegram.pushEnabled)" @change="changeTelegramPush" />
         </div>
         <div class="telegram-hint">
-          1. Click Bind Telegram to generate a bind link (valid 10 minutes)<br>
-          2. Click Open bot to bind to jump to the bot configured by admin<br>
-          3. Press Start in Telegram, then enable the push switch here
+          1. 点击「绑定 Telegram」生成绑定链接（10 分钟内有效）<br>
+          2. 点击「打开机器人绑定」，浏览器会跳转到站长配置的机器人<br>
+          3. 在 Telegram 点 Start / 开始 后，回到这里打开推送开关
         </div>
         <div v-if="!telegram.botUsername" class="telegram-disabled">
-          Admin has not configured the bot link yet. You can still copy the bind command manually.
+          站长尚未配置机器人链接，暂时只能手动复制绑定命令。
         </div>
         <div v-if="bindingCode" class="telegram-bind-code">
           <code>/start bind_{{ bindingCode }}</code>
-          <el-button size="small" @click="copyBindingCommand">Copy command</el-button>
+          <el-button size="small" @click="copyBindingCommand">复制命令</el-button>
         </div>
         <div class="telegram-actions">
           <el-button type="primary" :loading="telegramLoading" @click="createBinding">
-            {{ telegram.chatId ? 'Rebind' : 'Bind Telegram' }}
+            {{ telegram.chatId ? '重新绑定' : '绑定 Telegram' }}
           </el-button>
           <el-button
             v-if="bindingBotLink"
@@ -71,12 +71,12 @@
             :disabled="telegramLoading"
             @click="openBotBinding"
           >
-            Open bot to bind
+            打开机器人绑定
           </el-button>
-          <el-button v-if="telegram.chatId" :disabled="telegramLoading" @click="removeTelegramBinding">Unbind</el-button>
+          <el-button v-if="telegram.chatId" :disabled="telegramLoading" @click="removeTelegramBinding">解除绑定</el-button>
         </div>
       </template>
-      <div v-else class="telegram-disabled">Telegram push has not been authorized by the root administrator.</div>
+      <div v-else class="telegram-disabled">站长尚未为该账号授权 Telegram 推送。</div>
     </div>
     <div class="del-email" v-perm="'my:delete'">
       <div class="title">{{$t('deleteUser')}}</div>
@@ -189,9 +189,9 @@ function createBinding() {
       telegram.value.botLink = data.botUsername ? ('https://t.me/' + data.botUsername) : telegram.value.botLink
     }
     if (data.botLink) {
-      ElMessage({ message: 'Bind link ready. Click Open bot to bind.', type: 'success', plain: true })
+      ElMessage({ message: '绑定链接已生成，请点击「打开机器人绑定」', type: 'success', plain: true })
     } else {
-      ElMessage({ message: 'Bind command generated. Admin has not set bot link yet.', type: 'warning', plain: true })
+      ElMessage({ message: '已生成绑定命令（站长尚未配置机器人链接）', type: 'warning', plain: true })
     }
   }).finally(() => {
     telegramLoading.value = false
@@ -200,7 +200,7 @@ function createBinding() {
 
 function openBotBinding() {
   if (!bindingBotLink.value) {
-    ElMessage({ message: 'No bind link available. Generate binding first or ask admin to set bot username.', type: 'warning', plain: true })
+    ElMessage({ message: '暂无可用绑定链接，请先生成绑定或联系站长配置机器人', type: 'warning', plain: true })
     return
   }
   window.open(bindingBotLink.value, '_blank', 'noopener,noreferrer')
@@ -208,7 +208,7 @@ function openBotBinding() {
 
 function copyBindingCommand() {
   navigator.clipboard.writeText('/start bind_' + bindingCode.value)
-  ElMessage({ message: 'Command copied. Send it to the bot within 10 minutes.', type: 'success', plain: true })
+  ElMessage({ message: '绑定命令已复制，请在 10 分钟内发给机器人', type: 'success', plain: true })
 }
 
 function changeTelegramPush(enabled) {
