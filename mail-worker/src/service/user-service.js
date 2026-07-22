@@ -16,8 +16,6 @@ import saltHashUtils from '../utils/crypto-utils';
 import constant from '../const/constant';
 import { t } from '../i18n/i18n'
 import reqUtils from '../utils/req-utils';
-import {oauth} from "../entity/oauth";
-import oauthService from "./oauth-service";
 import adminUtils from '../utils/admin-utils';
 import accessControlService from '../security/access-control-service';
 import { userTelegram } from '../entity/user-telegram';
@@ -192,7 +190,6 @@ const userService = {
 		userIds = userIds.split(',').map(Number);
 		await Promise.all(userIds.map(userId => accessControlService.assertCanManageUser(c, userId)));
 		await accountService.physicsDeleteByUserIds(c, userIds);
-		await oauthService.deleteByUserIds(c, userIds);
 		await orm(c).delete(user).where(inArray(user.userId, userIds)).run();
 	},
 
@@ -236,12 +233,8 @@ const userService = {
 
 		const query = orm(c).select({
 			...user,
-			telegramAuthorized: userTelegram.authorized,
-			username: oauth.username,
-			trustLevel: oauth.trustLevel,
-			avatar: oauth.avatar,
-			name: oauth.name
-		}).from(user).leftJoin(oauth, eq(oauth.userId, user.userId))
+			telegramAuthorized: userTelegram.authorized
+		}).from(user)
 			.leftJoin(userTelegram, eq(userTelegram.userId, user.userId))
 			.where(and(...conditions));
 

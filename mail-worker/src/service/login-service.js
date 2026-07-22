@@ -26,14 +26,14 @@ const loginService = {
 	async register(c, params, options = {}) {
 
 		const { email, password, token, code } = params;
-		const { oauth = false, adminBootstrap = false } = options;
+		const { adminBootstrap = false } = options;
 
 		let { regKey, register, registerVerify, regVerifyCount, minEmailPrefix, emailPrefixFilter } = await settingService.query(c)
 		emailPrefixFilter = Array.isArray(emailPrefixFilter)
 			? emailPrefixFilter
 			: String(emailPrefixFilter || '').split(',').filter(Boolean);
 
-		if (oauth || adminBootstrap) {
+		if (adminBootstrap) {
 			registerVerify = settingConst.registerVerify.CLOSE;
 			register = settingConst.register.OPEN;
 		}
