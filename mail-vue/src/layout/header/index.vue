@@ -156,23 +156,23 @@ const sendType = computed(() => {
     return t('unauthorized')
   }
 
-  if (userStore.user.role.sendType === 'ban') {
+  if (userStore.user.role?.sendType === 'ban') {
     return t('sendBanned')
   }
 
-  if (userStore.user.role.sendType === 'internal') {
+  if (userStore.user.role?.sendType === 'internal') {
     return t('sendInternal')
   }
 
-  if (!userStore.user.role.sendCount) {
+  if (!userStore.user.role?.sendCount) {
     return t('unlimited')
   }
 
-  if (userStore.user.role.sendType === 'day') {
+  if (userStore.user.role?.sendType === 'day') {
     return t('daily')
   }
 
-  if (userStore.user.role.sendType === 'count') {
+  if (userStore.user.role?.sendType === 'count') {
     return t('total')
   }
 })
@@ -184,15 +184,15 @@ const sendCount = computed(() => {
     return null
   }
 
-  if (userStore.user.role.sendType === 'ban') {
+  if (userStore.user.role?.sendType === 'ban') {
     return null
   }
 
-  if (userStore.user.role.sendType === 'internal') {
+  if (userStore.user.role?.sendType === 'internal') {
     return null
   }
 
-  if (!userStore.user.role.sendCount) {
+  if (!userStore.user.role?.sendCount) {
     return null
   }
 
@@ -200,7 +200,7 @@ const sendCount = computed(() => {
     return null
   }
 
-  return userStore.user.sendCount + '/' + userStore.user.role.sendCount
+  return userStore.user.sendCount + '/' + userStore.user.role?.sendCount
 })
 
 function userInfoHide(e) {

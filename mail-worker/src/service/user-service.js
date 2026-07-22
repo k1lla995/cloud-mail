@@ -51,6 +51,8 @@ const userService = {
 		if (adminUtils.isAdminUser(userRow, c.env.admin)) {
 			user.role = constant.ADMIN_ROLE
 			user.type = 0;
+		} else if (!roleRow) {
+			throw new BizError(t('roleNotExist'), 403);
 		}
 
 		return user;

@@ -23,6 +23,7 @@ import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
 import adminUtils from '../utils/admin-utils';
+import constant from '../const/constant';
 
 const emailService = {
 
@@ -336,7 +337,13 @@ const emailService = {
 		}
 
 		const userRow = await userService.selectById(c, userId);
-		const roleRow = await roleService.selectById(c, userRow.type);
+		let roleRow = await roleService.selectById(c, userRow.type);
+
+		if (adminUtils.isAdminUser(userRow, c.env.admin)) {
+			roleRow = constant.ADMIN_ROLE;
+		} else if (!roleRow) {
+			throw new BizError(t('roleNotExist'), 403);
+		}
 
 		//判断接收方是不是全部为站内邮箱
 		const allInternal = receiveEmail.every(email => {
@@ -492,7 +499,7 @@ const emailService = {
 		}
 
 		//如果权限有发送次数增加用户发送次数
-		if (roleRow.sendCount && roleRow.sendType !== 'internal') {
+		if (roleRow?.sendCount && roleRow.sendType !== 'internal') {
 			await userService.incrUserSendCount(c, receiveEmail.length, userId);
 		}
 
