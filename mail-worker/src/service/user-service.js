@@ -189,6 +189,7 @@ const userService = {
 		let { userIds } = params;
 		userIds = userIds.split(',').map(Number);
 		await Promise.all(userIds.map(userId => accessControlService.assertCanManageUser(c, userId)));
+		await Promise.all(userIds.map(userId => c.env.kv.delete(KvConst.AUTH_INFO + userId)));
 		await accountService.physicsDeleteByUserIds(c, userIds);
 		await orm(c).delete(user).where(inArray(user.userId, userIds)).run();
 	},
